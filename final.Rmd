@@ -35,13 +35,15 @@ transport_dt <- load_dt(DATA_FOLDER, 'transports.csv')
 
 # Motivation and Goals
 
-In 2017, with a population of about 1.621 million, the capital of Catalonia had an accident rate way above the national average (582 vs 219 [1 TODO: add source] accidents with victims per 100.000 inhabitants).
+In 2017, with a population of about 1.621 million, the capital of Catalonia had an accident rate way above the national average (582 vs 219^[From Dirección General de Tráfico, Accessed 16 January 2022 <https://revista.dgt.es/es/noticias/nacional/2018/07JULIO/0712-Siniestralidad-2017.shtml>] accidents with victims per 100.000 inhabitants).
 In an attempt of mitigating the high number of accidents that occurred in the city of Barcelona, we try to understand which factors can explain them and how can we predict XXXX (TODO: insert prediction task and specify work done).
+
+
 
 ```{r goals, include=FALSE}
 # National Accident with victims rate:
 total_accidents_with_victims <- 102233 #from source [1]
-total_population <- 46658447 # from source [2]
+total_population <- 46658447 # from Wikipedia
 total_acc_rate_per100 <- total_accidents_with_victims / total_population * 1e5
 
 # Barcelona Accidents with victims rate:
@@ -105,7 +107,7 @@ trans_x_acc_by_district_dt[, N.Transports := replace_na(N.Transports, 0)]
 
 
 # Data Analysis
-Since Barcelona is the second most populated city in Spain [2 TODO: add source], what first comes to mind is that the difference in the accident rate is related to the number of people living in it. 
+Since Barcelona is the second most populated city in Spain^[From Wikipedia, Accessed 17 January 2022 <https://en.wikipedia.org/wiki/List_of_European_cities_by_population_within_city_limits>], what first comes to mind is that the difference in the accident rate is related to the number of people living in it. 
 We started by investigating how the number of accident vary by district:
 
 ```{r acc_distr}
