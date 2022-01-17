@@ -1,0 +1,212 @@
+---
+title: "Analysis of Car Accidents in Barcelona"
+subtitle: "Data Analysis and Visualization in R (IN2339) - Case Study"
+author: "Ivan Iliash, Johann Promeuschel, Manuel Coutinho, Onat Kaya"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r libraries, include=FALSE}
+library(ggplot2)
+library(data.table)
+library(dplyr)
+library(tidyr)
+library(ggrepel)
+```
+
+```{r dts}
+DATA_FOLDER <- 'data'
+
+load_dt <- function(folder, file){
+  dt <- fread(file.path(folder, file)) # Read document
+  setnames(dt, colnames(dt), gsub(' ', '.', colnames(dt))) # Replaces spaces with . in column names
+  return(dt)
+}
+
+acc_dt <- load_dt(DATA_FOLDER, 'accidents_2017_fixed.csv')
+pop_dt <- load_dt(DATA_FOLDER, 'population.csv')
+transport_dt <- load_dt(DATA_FOLDER, 'transports.csv')
+```
+
+
+# Motivation and Goals
+
+In 2017, with a population of about 1.621 million, the capital of Catalonia had an accident rate way above the national average (582 vs 219 [1 TODO: add source] accidents with victims per 100.000 inhabitants).
+In an attempt of mitigating the high number of accidents that occurred in the city of Barcelona, we try to understand which factors can explain them and how can we predict XXXX (TODO: insert prediction task and specify work done).
+
+```{r goals, include=FALSE}
+# National Accident with victims rate:
+total_accidents_with_victims <- 102233 #from source [1]
+total_population <- 46658447 # from source [2]
+total_acc_rate_per100 <- total_accidents_with_victims / total_population * 1e5
+
+# Barcelona Accidents with victims rate:
+barc_accidents_with_victims <- nrow(acc_dt[Victims > 0])
+barc_population <- sum(pop_dt[Year == 2017, Number])
+barc_acc_rate_per100 <- barc_accidents_with_victims / barc_population * 1e5
+
+sprintf("Total number of accidents with victims per 100k: %d", round(total_acc_rate_per100))
+sprintf("Barcelona number of accidents with victims per 100k: %d", round(barc_acc_rate_per100))
+```
+
+# Data Preparation
+Besides the usual data preparation needed to plot the data, we also cleaned the 'accidents_2017.csv' dataset by adding the correct District name and Neighborhood name to those flagged with "Unknown". This was done with a Python script using the Longitude and Latitude coordinates of the accident and making a request to the OpenStreetMap API.
+
+```{r, include=FALSE}
+# Proof of dataset cleaning
+sprintf("Number of Unkown Districts before cleaning vs after: %d - %d", 
+        nrow(load_dt(DATA_FOLDER, 'accidents_2017.csv')[District.Name == 'Unknown']), 
+        nrow(acc_dt[District.Name == 'Unknown']))
+
+# 2017 Population x Accident Aggregated by District or Neighborhood
+pop2017_dt <- pop_dt[Year == 2017]
+
+# TODO: passing column names as argument is not working
+# prepare_pop_x_acc <- function(pop_dt, acc_dt, aggr.variable){
+#   pop_by_var_dt <- aggregate(list(Number=pop_dt$Number), by=list(aggr.variable=pop_dt$aggr.variable), FUN=sum)
+#   acc_by_var_dt <- acc_dt[, .N, by=aggr.variable]
+#   return(merge(pop_by_var_dt, acc_by_var_dt, by=aggr.variable))
+# }
+
+# pop_x_acc_by_neighboorhood_dt <- prepare_pop_x_acc(pop2017_dt, acc_dt=acc_dt, aggr.variable = 'Neighborhood.Name')
+# pop_x_acc_by_district_dt <- prepare_pop_x_acc(aggr.variable = 'District.Name')
+
+
+pop_by_district_dt <- aggregate(list(Number=pop2017_dt$Number), by=list(District.Name=pop2017_dt$District.Name), FUN=sum)
+pop_by_neighborhood_dt <- aggregate(list(Number=pop2017_dt$Number), by=list(Neighborhood.Name=pop2017_dt$Neighborhood.Name), FUN=sum)
+
+# Accidents by Neighborhood and by District
+acc_by_neighboorhood_dt <- acc_dt[, .N, by=Neighborhood.Name]
+setnames(acc_by_neighboorhood_dt, "N", "N.Accidents")
+acc_by_district_dt <- acc_dt[, .N, by=District.Name]
+setnames(acc_by_district_dt, "N", "N.Accidents")
+
+# Accidents by Population Datasets
+pop_x_acc_by_neighboorhood_dt <- merge(pop_by_neighborhood_dt, acc_by_neighboorhood_dt, by='Neighborhood.Name')
+pop_x_acc_by_district_dt <- merge(pop_by_district_dt, acc_by_district_dt, by='District.Name')
+
+# Transports by Neighborhood and by District
+transport_by_neighboorhood_dt <- transport_dt[, .N, by=Neighborhood.Name]
+setnames(transport_by_neighboorhood_dt, "N", "N.Transports")
+transport_by_district_dt <- transport_dt[, .N, by=District.Name]
+setnames(transport_by_district_dt, "N", "N.Transports")
+
+# Accidents by Transports Datasets
+trans_x_acc_by_neighborhood_dt <- merge(transport_by_neighboorhood_dt, acc_by_neighboorhood_dt, by="Neighborhood.Name", all.y = T)
+trans_x_acc_by_neighborhood_dt[, N.Transports := replace_na(N.Transports, 0)]
+
+trans_x_acc_by_district_dt <- merge(transport_by_district_dt, acc_by_district_dt, by="District.Name", all.y = T)
+trans_x_acc_by_district_dt[, N.Transports := replace_na(N.Transports, 0)]
+```
+
+
+# Data Analysis
+Since Barcelona is the second most populated city in Spain [2 TODO: add source], what first comes to mind is that the difference in the accident rate is related to the number of people living in it. 
+We started by investigating how the number of accident vary by district:
+
+```{r acc_distr}
+# TODO: don't know if geom_text is needed, simplify graphic? - clean lines, background, ...
+acc_dt %>% ggplot(aes(x=District.Name)) + 
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust=-0.3) +
+  labs(x = 'District', y = 'Number of Accidents') +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.95, hjust=0.9))
+
+```
+
+As expected, there are differences between them so we can test the proposed correlation between population and the number of accidents in that occurred in 2017, comparing different Neighborhoods and Districts:
+
+```{r corr_pop_x_acc, warning=FALSE, out.width="49%",  message = FALSE}
+# TODO: adjust, make x axis label centered, same size -> aesthetics
+
+pop_x_acc_by_neighboorhood_dt %>% 
+  ggplot(aes(x=Number,y=N.Accidents)) + geom_point() + stat_smooth(method="lm") + 
+  geom_text_repel(aes(label=Neighborhood.Name)) +
+  labs(x = 'Population', y = 'Number of Accidents', title = "Number of Accidents by Neighborhood Population") +
+  theme(plot.title = element_text(size=14, margin=margin(b=14)))
+pop_x_acc_by_district_dt %>% 
+  ggplot(aes(x=Number,y=N.Accidents)) + geom_point() + stat_smooth(method="lm") + 
+  geom_text_repel(aes(label=District.Name)) +
+  labs(title = "Number of Accidents by District Population") +
+  theme(axis.title.x = element_blank(), axis.title.y = element_blank(), 
+        plot.title = element_text(size=14, margin=margin(b=14)))
+
+
+```
+
+Although both this correlations are statistically significant (p-value lower than .05 in both cases of the Spearman's rank correlation test), we can notice that there are obvious outliers, namely the district Eixample and some of its neighborhoods (like "la Dreta de l'Eixample" and "l'Antiga Esquerra de l'Eixample").
+
+```{r corr_pop_x_acc_tests, include=FALSE}
+# TODO: is "include=FALSE" really what we want?
+
+print("Population in neighboorhood vs N Accident")
+cor.test(pop_x_acc_by_neighboorhood_dt$Number, pop_x_acc_by_neighboorhood_dt$N.Accidents, method="spearman", exact=FALSE)
+
+print("Population in district vs N Accident")
+cor.test(pop_x_acc_by_district_dt$Number, pop_x_acc_by_district_dt$N.Accidents, method="spearman")
+```
+
+The distribution of the accidents shouldn't be uniform throughout the day or the week.
+
+```{r acc_hourly, out.width="49%"}
+ggplot(acc_dt, aes(x=Hour)) + geom_bar() +labs(y="Number of accidents", title="Number of accidents by Hour")
+
+acc_dt %>%
+  mutate(Weekday=factor(Weekday, levels=c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))) %>%
+  ggplot(aes(x=Weekday)) + geom_bar() +
+  labs(title="Number of accidents by Weekday") +
+  theme(axis.title.y = element_blank())
+```
+
+As we can see, there are three peaks in the number of accidents: around 8-9hours, 13-14hours, and 18-19hours. This leads us to believe that more than the number of people, an important factor would be the traffic/movement since these hours correspond to the _going-to-work-time_, _lunch-time_ and _coming-back-from-work-time_.
+This theory is further proved by the fewer of accidents during the weekend, days that people tend to spend at home.
+
+We don't have any direct metric for the traffic, but we can use the number of transports in a certain area as a proxy for its afflux of people.
+
+```{r corr_trans_x_acc, warning=FALSE, out.width="49%",  message = FALSE}
+# TODO: adjust, make x axis label centered, same size -> aesthetics -> same as before
+
+trans_x_acc_by_neighborhood_dt %>% 
+  ggplot(aes(x=N.Transports,y=N.Accidents)) + geom_point() + stat_smooth(method="lm") + 
+  geom_text_repel(aes(label=Neighborhood.Name)) +
+  labs(x = 'Number of Transports', y = 'Number of Accidents', title = "Number of Accidents by Number of Transports in the Neighborhood") +
+  theme(plot.title = element_text(size=14, margin=margin(b=14)))
+
+trans_x_acc_by_district_dt %>% 
+  ggplot(aes(x=N.Transports,y=N.Accidents)) + geom_point() + stat_smooth(method="lm") + 
+  geom_text_repel(aes(label=District.Name)) +
+  labs(title = "Number of Accidents by Number of Transports in the District") +
+  theme(axis.title.x = element_blank(), axis.title.y = element_blank(), 
+        plot.title = element_text(size=14, margin=margin(b=14)))
+
+```
+These correlations are also statistically significant (p-values in the correlation test) and in some cases stronger than the population correlation (rho values: TODO: see if this is true). There still are some outliers (like "l'Antiga Esquerra de l'Eixample"), but it would be naïve of us to assume it would all be explained by only one variable let alone an imperfect heuristic.
+```{r corr_trans_x_acc_tests, include=FALSE}
+# TODO: is "include=FALSE" really what we want?
+
+print("Number of Transports in neighboorhood vs N Accident")
+cor.test(trans_x_acc_by_neighborhood_dt$N.Transports, trans_x_acc_by_neighborhood_dt$N.Accidents, method="spearman", exact=FALSE)
+
+print("Number of Transports in district vs N Accident")
+cor.test(trans_x_acc_by_district_dt$N.Transports, trans_x_acc_by_district_dt$N.Accidents, method="spearman")
+```
+
+
+One could argue that the number of buses in an area is the real influence here, but even when we control for this variable, the correlation still remains.
+```{r}
+#TODO: correlation btw N.Accidents and N.Transports, controlling for N.Bus
+```
+
+
+# Conclusions
+
+TODO:
+
+One crucial conclusion derived from the data is that where people move to is as important (or more) as to where they live. 
+In increasingly expanding cities, people start to move to the outskirts (due to different factors like house pricing),  traveling daily to the center to work. Although we can't be sure this is the reason for the number of accidents in Eixample, we can notice looking at the map that this is indeed the most touristic and central district of Barcelona.
+
+TODO: maybe image of the map
