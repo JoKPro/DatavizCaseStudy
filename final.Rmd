@@ -16,6 +16,7 @@ library(data.table)
 library(dplyr)
 library(tidyr)
 library(ggrepel)
+library(patchwork)
 ```
 
 ```{r dts}
@@ -122,21 +123,22 @@ acc_dt %>% ggplot(aes(x=District.Name)) +
 
 As expected, there are differences between them so we can test the proposed correlation between population and the number of accidents in that occurred in 2017, comparing different Neighborhoods and Districts:
 
-```{r corr_pop_x_acc, warning=FALSE, out.width="49%",  message = FALSE}
+```{r corr_pop_x_acc, warning=FALSE, fig.width=13, message = FALSE}
 # TODO: adjust, make x axis label centered, same size -> aesthetics
 
-pop_x_acc_by_neighboorhood_dt %>% 
+p1 <- pop_x_acc_by_neighboorhood_dt %>% 
   ggplot(aes(x=Number,y=N.Accidents)) + geom_point() + stat_smooth(method="lm") + 
   geom_text_repel(aes(label=Neighborhood.Name)) +
-  labs(x = 'Population', y = 'Number of Accidents', title = "Number of Accidents by Neighborhood Population") +
+  labs(x = '', y = 'Number of Accidents', title = "Number of Accidents by Neighborhood Population") +
   theme(plot.title = element_text(size=14, margin=margin(b=14)))
-pop_x_acc_by_district_dt %>% 
+p2 <- pop_x_acc_by_district_dt %>% 
   ggplot(aes(x=Number,y=N.Accidents)) + geom_point() + stat_smooth(method="lm") + 
   geom_text_repel(aes(label=District.Name)) +
-  labs(title = "Number of Accidents by District Population") +
-  theme(axis.title.x = element_blank(), axis.title.y = element_blank(), 
-        plot.title = element_text(size=14, margin=margin(b=14)))
+  labs(x='', y='', title = "Number of Accidents by District Population") +
+  theme(plot.title = element_text(size=14, margin=margin(b=14)))
 
+p1 + p2
+grid::grid.draw(grid::textGrob("Population", y=0.05, x=0.52))
 
 ```
 
@@ -154,7 +156,7 @@ cor.test(pop_x_acc_by_district_dt$Number, pop_x_acc_by_district_dt$N.Accidents, 
 
 The distribution of the accidents shouldn't be uniform throughout the day or the week.
 
-```{r acc_hourly, out.width="49%"}
+```{r acc_hourly, fig.show="hold", out.width="50%"}
 ggplot(acc_dt, aes(x=Hour)) + geom_bar() +labs(y="Number of accidents", title="Number of accidents by Hour")
 
 acc_dt %>%
@@ -169,21 +171,23 @@ This theory is further proved by the fewer of accidents during the weekend, days
 
 We don't have any direct metric for the traffic, but we can use the number of transports in a certain area as a proxy for its afflux of people.
 
-```{r corr_trans_x_acc, warning=FALSE, out.width="49%",  message = FALSE}
+```{r corr_trans_x_acc, warning=FALSE, fig.width=13, message = FALSE}
 # TODO: adjust, make x axis label centered, same size -> aesthetics -> same as before
 
-trans_x_acc_by_neighborhood_dt %>% 
+p1 <- trans_x_acc_by_neighborhood_dt %>% 
   ggplot(aes(x=N.Transports,y=N.Accidents)) + geom_point() + stat_smooth(method="lm") + 
   geom_text_repel(aes(label=Neighborhood.Name)) +
-  labs(x = 'Number of Transports', y = 'Number of Accidents', title = "Number of Accidents by Number of Transports in the Neighborhood") +
+  labs(x = '', y = 'Number of Accidents', title = "Number of Accidents by Number of Transports in the Neighborhood") +
   theme(plot.title = element_text(size=14, margin=margin(b=14)))
 
-trans_x_acc_by_district_dt %>% 
+p2 <- trans_x_acc_by_district_dt %>% 
   ggplot(aes(x=N.Transports,y=N.Accidents)) + geom_point() + stat_smooth(method="lm") + 
   geom_text_repel(aes(label=District.Name)) +
-  labs(title = "Number of Accidents by Number of Transports in the District") +
-  theme(axis.title.x = element_blank(), axis.title.y = element_blank(), 
-        plot.title = element_text(size=14, margin=margin(b=14)))
+  labs(x='', y='', title = "Number of Accidents by Number of Transports in the District") +
+  theme(plot.title = element_text(size=14, margin=margin(b=14)))
+
+p1 + p2
+grid::grid.draw(grid::textGrob("Number of Transports", y=0.05, x=0.52))
 
 ```
 These correlations are also statistically significant (p-values in the correlation test) and in some cases stronger than the population correlation (rho values: TODO: see if this is true). There still are some outliers (like "l'Antiga Esquerra de l'Eixample"), but it would be naïve of us to assume it would all be explained by only one variable let alone an imperfect heuristic.
@@ -212,3 +216,4 @@ One crucial conclusion derived from the data is that where people move to is as 
 In increasingly expanding cities, people start to move to the outskirts (due to different factors like house pricing),  traveling daily to the center to work. Although we can't be sure this is the reason for the number of accidents in Eixample, we can notice looking at the map that this is indeed the most touristic and central district of Barcelona.
 
 TODO: maybe image of the map
+
