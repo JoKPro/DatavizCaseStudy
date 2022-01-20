@@ -208,6 +208,74 @@ One could argue that the number of buses in an area is the real influence here, 
 ```
 
 
+To better understand the nature of the accidents, a prediction task was made using logistic regression. In this prediction, part of the day of the accident (which was categorized as morning and non-morning, includes "afternoon" and "night") was tried to guessed using features the features "district name", "weekday", "month", "mild injuries", "serious injuries", "victims", "vehicles involved". After the model was built, the confusion matrix and the accuracy of the model was computed and printed to show the performance our prediction.
+
+```{r log_reg include = FALSE warning = FALSE}
+
+
+
+# Create the input data frame.
+data_dt_1 <- acc_dt[c(1:10339),c(2,5,6,7,8,9,10,11,12,13)] # starting from the 1st data point to all the end. 
+
+# trying to guess: part of the days morning, not-morning (afternoon, night)
+# features: district name, weekday, month, mild injuries, serious injuries, victims, vehicles involved 
+
+# Encoding categorical data columns.
+data_dt_1$District.Name = factor(data_dt_1$District.Name, level = c("Sant MartÃ­", "Ciutat Vella", "Eixample", "Sants-MontjuÃ¯c",  "Les Corts",  "SarriÃ -Sant Gervasi", "GrÃ cia",
+                                                                   "Horta-GuinardÃ³","Nou Barris", "Sant Andreu"), labels = c(1,2,3,4,5,6,7,8,9,10))
+data_dt_1$Weekday = factor(data_dt_1$Weekday, level = c("Friday", "Thursday", "Wednesday", "Saturday", "Tuesday", "Monday","Sunday"), labels = c(5,4,3,6,2,1,7))
+data_dt_1$Month = factor(data_dt_1$Month, level = c("October","September", "December", "July", "May", "June","January", "April", "March", "November", "February", "August" ),
+                         labels = c(10,9,12,7,5,6,1,4,3,11,2,8))
+data_dt_1$Part.of.the.day = factor(data_dt_1$Part.of.the.day, level = c( "Morning", "Afternoon", "Night"), labels = c(0,1,1))
+
+
+
+# shuffling the data
+
+shuffle_index <- sample(1:nrow(data_dt_1))
+data_dt_2 <- data_dt_1[shuffle_index, ] 
+
+
+# split as train-test data
+create_train_test <- function(data, size = 0.8, train = TRUE) {
+  n_row = nrow(data)
+  total_row = size * n_row
+  train_sample <- 1: total_row
+  if (train == TRUE) {
+    return (data[train_sample, ])
+  } else {c
+    return (data[-train_sample, ])
+  }
+}
+
+
+data_train <- create_train_test(data_dt_2, 0.8, train = TRUE)
+data_test <- create_train_test(data_dt_2, 0.8, train = FALSE)
+
+# Building our multiple logistic regression model
+
+multi_logistic_model <- glm(Part.of.the.day ~ District.Name + Weekday + Month + Day + Hour + Mild.injuries + Serious.injuries + Victims + Vehicles.involved, data = data_train, family = "binomial")
+multi_logistic_model
+# summary(multi_logistic_model)
+
+# Doing prediction
+predict_reg <- predict(multi_logistic_model, data_test, type = "response")
+ 
+
+# Hard classification
+predict_reg <- ifelse(predict_reg >0.5, 1, 0)
+
+# Evaluating model accuracy using confusion matrix
+confusion_matrix = table(data_test$Part.of.the.day, predict_reg)
+
+print(confusion_matrix)
+
+# Calculating accuracy
+missing_classerr <- mean(predict_reg != data_test$Part.of.the.day)
+print(paste('Accuracy =', 1 - missing_classerr))
+
+```
+
 # Conclusions
 
 TODO:
