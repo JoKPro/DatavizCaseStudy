@@ -19,8 +19,10 @@ library(data.table)
 library(dplyr)
 library(tidyr)
 library(ggrepel)
+library(ppcor)
 library(patchwork)
 library(forcats)
+library(ggpubr)
 ```
 
 ```{r dts}
@@ -35,7 +37,47 @@ load_dt <- function(folder, file){
 acc_dt <- load_dt(DATA_FOLDER, 'accidents_2017.csv')
 pop_dt <- load_dt(DATA_FOLDER, 'population.csv')
 transport_dt <- load_dt(DATA_FOLDER, 'transports.csv')
+bus_dt <- load_dt(DATA_FOLDER, "bus_stops.csv")
 ```
+
+```{r}
+
+# IGNORE (my (johann) data preparation)
+
+
+accidents_neighborhood <-acc_dt[, .(accidents = .N), Neighborhood.Name]
+accidents_neighborhood <- accidents_neighborhood[order(tolower(accidents_neighborhood$Neighborhood.Name)),]
+accidents_neighborhood <- accidents_neighborhood[!(accidents_neighborhood$Neighborhood.Name == "Unknown")]
+
+# bus stops
+stops_neighborhood <- bus_dt[, .(bus_stops = .N), Neighborhood.Name]
+stops_neighborhood$Neighborhood.Name[stops_neighborhood$Neighborhood.Name == ""] <- "unknown"
+stops_neighborhood <- stops_neighborhood[!(stops_neighborhood$Neighborhood.Name == "unknown")]
+stops_neighborhood <- stops_neighborhood[order(tolower(stops_neighborhood$Neighborhood.Name)),]
+
+# transport
+transport_neighborhood <- transport_dt[, .(transports = .N), Neighborhood.Name]
+transport_neighborhood$Neighborhood.Name[transport_neighborhood$Neighborhood.Name == ""] <- "unknown"
+transport_neighborhood <- transport_neighborhood[!(transport_neighborhood$Neighborhood.Name == "unknown")]
+missing <- setdiff(stops_neighborhood$Neighborhood.Name, transport_neighborhood$Neighborhood.Name)
+tmp <- data.table(Neighborhood.Name = missing, transports = rep(0, 10))
+transport_neighborhood <- rbind(transport_neighborhood, tmp)
+transport_neighborhood <- transport_neighborhood[order(tolower(transport_neighborhood$Neighborhood.Name)),]
+
+# population
+pop_neighborhood <- pop_dt[Year == "2017", .(population = sum(Number)), by=Neighborhood.Name]
+pop_neighborhood$Neighborhood.Name[pop_neighborhood$Neighborhood.Name == ""] <- "unknown"
+pop_neighborhood <- pop_neighborhood[!(pop_neighborhood$Neighborhood.Name == "unknown")]
+missing <- setdiff(stops_neighborhood$Neighborhood.Name, pop_neighborhood)
+tmp <- data.table(Neighborhood.Name = missing, population = NA)
+pop_neighborhood <- rbind(pop_neighborhood, tmp)
+pop_neighborhood <- pop_neighborhood[order(tolower(transport_neighborhood$Neighborhood.Name)), ]
+
+df <- accidents_neighborhood %>% .[, `:=` (bus_stops=stops_neighborhood$bus_stops, 
+                                           transports=transport_neighborhood$transports,
+                                           population=pop_neighborhood$population)]
+df <- data.table(df)
+``` 
 
 
 # Motivation and Goals
@@ -191,13 +233,122 @@ print("Number of Transports in district vs N Accident")
 cor.test(trans_x_acc_by_district_dt$N.Transports, trans_x_acc_by_district_dt$N.Accidents, method="spearman")
 ```
 
+### Bus stops as confounding variable?
 
-One could argue that the number of buses in an area is the real influence here, but even when we control for this variable, the correlation still remains.
-```{r}
-#TODO: correlation btw N.Accidents and N.Transports, controlling for N.Bus
+One could argue that the number of buses in an area is the real influence here.  
+
+```{r echo=FALSE, results="hide", fig.keep="all", message=FALSE, running=FALSE, warning = FALSE}
+
+df_melt <- melt(df, id.vars = c("Neighborhood.Name", "accidents"), variable.name = "group", 
+                value.name = "value")
+
+
+p1 <- ggplot(df) + geom_point(aes(bus_stops, accidents, color = "bus_stops")) + 
+  geom_point(aes(transports, accidents, color = "transports")) + 
+  geom_smooth(mapping=aes(bus_stops, accidents), method = "lm",
+              color = "red") + 
+  geom_smooth(mapping=aes(transports, accidents), method = "lm", alpha = 0.2,
+              se = TRUE, color = "cyan") +
+  xlab(label = "transport and bus stops") + 
+  ggtitle("Positive correlation between transport/bus stops and accidents") 
+  theme_light()
+
+p1
+
+```
+```{r echo=FALSE, results="hide", fig.keep="all", message=FALSE, running=FALSE}
+p2 <- ggplot(df, aes(transports, bus_stops)) + geom_point() +
+  geom_smooth(method = "lm") + 
+  ggtitle("Positive correlation between transport and bus stops")
+  theme_light()
+
+p2
+```
+
+The two graphs above show that both the number bus stops and other transport stops in each neighborhood are positively associated with accidents and that also transports and bus stops are correlated themselves. It is possible that bus stops are a confounding variable in the correlation between transport stops and accidents. Thus, it is necessary to check the correlation again while keeping the number of bus stops constant
+
+```{r echo=FALSE, results="hide", fig.keep="all"}
+
+normalize = function(array){
+  res <- sapply(array, function(x){
+    (x-min(array))/(max(array)-min(array))
+  })
+}
+
+
+# dat <- df[, bus_strata := with(df, cut(bus_stops, breaks = seq(0, 137, 15), labels = c("0-15", "15-30", 
+#                                                                 "30-45", "45-60",
+#                                                                 "60-75", "75-90",
+#                                                                 "90-105", "105-120",
+#                                                                 "120-135")))]
+
+dat <- df[, bus_strata := with(df, cut(bus_stops, breaks = c(0, 30, 60, 90, 137), 
+                                       labels = c("0-30","31-60","61-90", ">90")))]
+
+#dat_normalized <- df[, c("bus_stops", "transports") := .(normalize(bus_stops),
+#                                                         normalize(transports))]
+
+dat %>%
+  ggplot(aes(transports, accidents)) + 
+  geom_point(alpha = 0.5) + 
+  geom_smooth(method = "lm") + 
+  facet_wrap(~ bus_strata, scales = "free") + 
+  ggtitle("Positive correlation accidents x transports",
+          subtitle = "controlling for binned numbers of bus stops")
+  theme_light()
+  
+```
+
+In the above plot the number of bus stops are binned into 4 range categories. The correlation between accidents and transport stations seemingly persists even when conditioning for bus stops. However, in the last category only few datapoints remain and the resulting correlation is visibly influenced by the outlier having about 60 transport station. 
+
+Below is the result for the spearman correlation test between :
+
+- accidents and transport, controlling for bus stops  
+- accidents and bus stops, controlling for transport stops. 
+
+```{r echo=FALSE, fig.keep="all", message=FALSE, running=FALSE}
+res1 <- pcor.test(df$accidents, df$transports, df$bus_stops, method = "spearman")
+res2 <- pcor.test(df$accidents, df$bus_stops, df$transports, method = "spearman")
+
+cor_dt <- data.table(test = c("accidents vs. transports",
+                    "accidents vs. bus_stops"))
+cor_dt <- cbind(cor_dt, rbind(res1, res2))
+cor_dt
 ```
 
 
+A positive correlation between accidents and transport stops of about 0.65 still remains and is statistically significant, even when controlling for bus stops. 
+
+### Predicting the number of accidents given transport and bus stops. 
+We can see that accidents are associated with transport opportunities and bus stops. This means that they could be used to create a model that helps predicting the average number of accidents given the number of bus and other transport stops. A good model could be useful for urban planners to anticipate the increase of accidents after installing different types of transport stations in a neighborhood. 
+
+```{r echo=FALSE, results="hide", fig.keep="all", message=FALSE, running=FALSE, warning=FALSE}
+set.seed(727)
+training <- data.table(sample_n(dat, 0.8*nrow(dat)))
+test <- anti_join(dat, training)
+result_lm <- lm(accidents ~ bus_stops + transports, data = training)
+
+test[, prediction := predict(result_lm, test)]
+test[, residuals := accidents - prediction]
+```
+
+```{r echo=FALSE, results="hide", fig.keep="all", message=FALSE, running=FALSE, warning=FALSE}
+test %>% 
+  ggplot(aes(accidents, prediction)) + 
+  geom_point() + stat_smooth(method="lm") + 
+  ggtitle("Positive correlation between predicted number of accidents and actual number of accidents")
+  theme_light()
+```
+
+```{r}
+result_lm$coefficients
+#print(summary(result_lm))
+```
+The results of the linear model suggest some predictive value of the variables bus stops and transport stops. However, one needs to be careful in drawing conclusions about the causality regarding the correlation between the number of different kinds of transport station and the number of accidents. The results of the model do not show that increasing the number of transport or bus stops causes an increase in accidents. ´
+
+#########
+
+### Logistic Regression 
 
 Next we will analyse the distribution of the accidents throughout the day and the week.
 
