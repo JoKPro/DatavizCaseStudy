@@ -387,10 +387,9 @@ Looking at the plot facetted by part of the day, we can clearly see that acciden
 
 
 ### Logistic Regression 
-To better understand the nature of the accidents, a prediction task was made using logistic regression. In this prediction, part of the day of the accident (which was categorized as morning and non-morning, which includes "afternoon" and "night") was guessed using the features "district name", "weekday", "month", "mild injuries", "serious injuries", "victims", "vehicles involved".
+To better understand the nature of the accidents, a prediction task was made using logistic regression. In this prediction, part of the day of the accident (which was categorized as morning and non-morning, which includes "afternoon" and "night") was guessed using the features "district name", "weekday", "month", "mild injuries", "serious injuries", "victims", "vehicles involved". Morning is annotated as 0, and "Non-morning" is annotated as 1.
 
 ```{r log_reg, include=FALSE, warning = FALSE}
-
 
 
 # Create the input data frame.
@@ -401,7 +400,7 @@ data_dt_1 <- acc_dt[c(1:10339),c(2,5,6,7,8,9,10,11,12,13)] # starting from the 1
 
 # Encoding categorical data columns.
 data_dt_1$District.Name = factor(data_dt_1$District.Name, level = c("Sant MartÃ­", "Ciutat Vella", "Eixample", "Sants-MontjuÃ¯c",  "Les Corts",  "SarriÃ -Sant Gervasi", "GrÃ cia",
-                                                                   "Horta-GuinardÃ³","Nou Barris", "Sant Andreu"), labels = c(1,2,3,4,5,6,7,8,9,10))
+                                                                   "Horta-GuinardÃ³","Nou Barris", "Sant Andreu", "Unknown"), labels = c(1,2,3,4,5,6,7,8,9,10,0))
 data_dt_1$Weekday = factor(data_dt_1$Weekday, level = c("Friday", "Thursday", "Wednesday", "Saturday", "Tuesday", "Monday","Sunday"), labels = c(5,4,3,6,2,1,7))
 data_dt_1$Month = factor(data_dt_1$Month, level = c("October","September", "December", "July", "May", "June","January", "April", "March", "November", "February", "August" ),
                          labels = c(10,9,12,7,5,6,1,4,3,11,2,8))
@@ -434,12 +433,8 @@ data_test <- create_train_test(data_dt_2, 0.8, train = FALSE)
 # Building our multiple logistic regression model
 
 multi_logistic_model <- glm(Part.of.the.day ~ District.Name + Weekday + Month + Day + Hour + Mild.injuries + Serious.injuries + Victims + Vehicles.involved, data = data_train, family = "binomial")
-multi_logistic_model
-# summary(multi_logistic_model)
 
-# Doing prediction
 predict_reg <- predict(multi_logistic_model, data_test, type = "response")
- 
 
 # Hard classification
 predict_reg <- ifelse(predict_reg >0.5, 1, 0)
@@ -447,6 +442,8 @@ predict_reg <- ifelse(predict_reg >0.5, 1, 0)
 # Evaluating model accuracy using confusion matrix
 confusion_matrix = table(data_test$Part.of.the.day, predict_reg)
 
+
+print("The confusuion matrix (vertical line - actual results; horizontal line - predicted values):")
 print(confusion_matrix)
 
 # Calculating accuracy
