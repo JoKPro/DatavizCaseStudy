@@ -83,7 +83,7 @@ df <- data.table(df)
 # Motivation and Goals
 
 In 2017, with a population of about 1.621 million, the capital of Catalonia had an accident rate way above the national average (582 vs 219^[From Dirección General de Tráfico, Accessed 16 January 2022 <https://revista.dgt.es/es/noticias/nacional/2018/07JULIO/0712-Siniestralidad-2017.shtml>] accidents with victims per 100.000 inhabitants).
-In an attempt of mitigating the high number of accidents that occurred in the city of Barcelona, we try to understand which factors can explain them and how can we predict XXXX (TODO: insert prediction task and specify work done).
+In an attempt of mitigating the high number of accidents that occurred in the city of Barcelona, we show a collection of different findings that we made during the analysis and try to interpret some of these properties connected with the city's population, amount of public transport in certain areas, as well as time and location of accidents.
 
 
 
@@ -252,9 +252,8 @@ p1 <- ggplot(df) + geom_point(aes(bus_stops, accidents, color = "bus_stops")) +
   xlab(label = "transport and bus stops") + 
   ggtitle("Positive correlation between transport/bus stops and accidents") 
   theme_light()
-
+  
 p1
-
 ```
 ```{r echo=FALSE, results="hide", fig.keep="all", message=FALSE, running=FALSE}
 p2 <- ggplot(df, aes(transports, bus_stops)) + geom_point() +
@@ -319,36 +318,37 @@ cor_dt
 
 A positive correlation between accidents and transport stops of about 0.65 still remains and is statistically significant, even when controlling for bus stops. 
 
-### Predicting the number of accidents given transport and bus stops. 
-We can see that accidents are associated with transport opportunities and bus stops. This means that they could be used to create a model that helps predicting the average number of accidents given the number of bus and other transport stops. A good model could be useful for urban planners to anticipate the increase of accidents after installing different types of transport stations in a neighborhood. 
+<!-- ### Predicting the number of accidents given transport and bus stops.  -->
+<!-- We can see that accidents are associated with transport opportunities and bus stops. This means that they could be used to create a model that helps predicting the average number of accidents given the number of bus and other transport stops. A good model could be useful for urban planners to anticipate the increase of accidents after installing different types of transport stations in a neighborhood.  -->
 
-```{r echo=FALSE, results="hide", fig.keep="all", message=FALSE, running=FALSE, warning=FALSE}
-set.seed(727)
-training <- data.table(sample_n(dat, 0.8*nrow(dat)))
-test <- anti_join(dat, training)
-result_lm <- lm(accidents ~ bus_stops + transports, data = training)
+<!-- ```{r echo=FALSE, results="hide", fig.keep="all", message=FALSE, running=FALSE, warning=FALSE} -->
+<!-- set.seed(727) -->
+<!-- training <- data.table(sample_n(dat, 0.8*nrow(dat))) -->
+<!-- test <- anti_join(dat, training) -->
+<!-- result_lm <- lm(accidents ~ bus_stops + transports, data = training) -->
 
-test[, prediction := predict(result_lm, test)]
-test[, residuals := accidents - prediction]
-```
+<!-- test[, prediction := predict(result_lm, test)] -->
+<!-- test[, residuals := accidents - prediction] -->
+<!-- ``` -->
 
-```{r echo=FALSE, results="hide", fig.keep="all", message=FALSE, running=FALSE, warning=FALSE}
-test %>% 
-  ggplot(aes(accidents, prediction)) + 
-  geom_point() + stat_smooth(method="lm") + 
-  ggtitle("Positive correlation between predicted number of accidents and actual number of accidents")
-  theme_light()
-```
+<!-- ```{r echo=FALSE, results="hide", fig.keep="all", message=FALSE, running=FALSE, warning=FALSE} -->
+<!-- test %>%  -->
+<!--   ggplot(aes(accidents, prediction)) +  -->
+<!--   geom_point() + stat_smooth(method="lm") +  -->
+<!--   ggtitle("Positive correlation between predicted number of accidents and actual number of accidents") -->
+<!--   theme_light() -->
+<!-- ``` -->
 
-```{r}
-result_lm$coefficients
-#print(summary(result_lm))
-```
-The results of the linear model suggest some predictive value of the variables bus stops and transport stops. However, one needs to be careful in drawing conclusions about the causality regarding the correlation between the number of different kinds of transport station and the number of accidents. The results of the model do not show that increasing the number of transport or bus stops causes an increase in accidents. ´
+<!-- ```{r} -->
+<!-- result_lm$coefficients -->
+<!-- #print(summary(result_lm)) -->
+<!-- ``` -->
+<!-- The results of the linear model suggest some predictive value of the variables bus stops and transport stops. However, one needs to be careful in drawing conclusions about the causality regarding the correlation between the number of different kinds of transport station and the number of accidents. The results of the model do not show that increasing the number of transport or bus stops causes an increase in accidents. ´ -->
 
 #########
 
-### Logistic Regression 
+
+
 
 Next we will analyse the distribution of the accidents throughout the day and the week.
 
@@ -366,21 +366,28 @@ As we can see, there are three peaks in the number of accidents: around 8-9 o'cl
 This theory is further reinforced by the fewer of accidents during the weekend, days that people tend to spend at home.
 
 For further visualization let's show the accident density first in general, and then facetted by the part of the day (Morning: 6-13 o'clock, Afternoon: 14-21 o'clock, Night: 22-5 o'clock) and weekdays.
+
+
 ```{r}
 d1 <- ggplot(acc_dt, aes(Longitude, Latitude)) + 
-    geom_density2d_filled()
+    geom_density2d_filled() + labs(title = "2D density of accidents in Barcelona") + theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), axis.text.y=element_blank(), axis.ticks.y=element_blank()) + guides(fill='none')
+
 
 d2 <- ggplot(acc_dt, aes(Longitude, Latitude)) + 
-    geom_density2d_filled() + facet_wrap(~Part.of.the.day)
+    geom_density2d_filled() + labs(title = "faceted by part of the day") +facet_wrap(~Part.of.the.day) + theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), axis.text.y=element_blank(), axis.ticks.y=element_blank(), axis.title.x=element_blank(), axis.title.y=element_blank()) + guides(fill='none')
 
-d1
-d2
+
+d1+d2
+
 ```
 What is interesting here, is that the density focuses into one central point, namely the Eixample disctrict (calculated from the Long and Lat variables).
-Looking at the plot facetted by part of the day, we can clearly see that accidents in areas leading from/to the center get more dense during the morning and afternoon. This further proves our theory from above.
+Looking at the plot facetted by part of the day, we can clearly see that accidents in areas leading from/to (especially south and north) the center get more dense during the morning and afternoon. This further proves our theory from above.
 
 
-To better understand the nature of the accidents, a prediction task was made using logistic regression. In this prediction, part of the day of the accident (which was categorized as morning and non-morning, includes "afternoon" and "night") was tried to guessed using features the features "district name", "weekday", "month", "mild injuries", "serious injuries", "victims", "vehicles involved". After the model was built, the confusion matrix and the accuracy of the model was computed and printed to show the performance our prediction.
+### Logistic Regression 
+To better understand the nature of the accidents, a prediction task was made using logistic regression. In this prediction, part of the day of the accident (which was categorized as morning and non-morning, which includes "afternoon" and "night") was guessed using the features "district name", "weekday", "month", "mild injuries", "serious injuries", "victims", "vehicles involved".
 
 ```{r log_reg, include=FALSE, warning = FALSE}
 
