@@ -1,9 +1,12 @@
 ---
 title: "Analysis of Car Accidents in Barcelona"
-subtitle: "Data Analysis and Visualization in R (IN2339) - Case Study"
 author: "Ivan Iliash, Johann Promeuschel, Manuel Coutinho, Onat Kaya"
 date: "`r Sys.Date()`"
-output: pdf_document
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+subtitle: Data Analysis and Visualization in R (IN2339) - Case Study
 ---
 
 ```{r setup, include=FALSE}
@@ -17,6 +20,7 @@ library(dplyr)
 library(tidyr)
 library(ggrepel)
 library(patchwork)
+library(forcats)
 ```
 
 ```{r dts}
@@ -28,7 +32,7 @@ load_dt <- function(folder, file){
   return(dt)
 }
 
-acc_dt <- load_dt(DATA_FOLDER, 'accidents_2017_fixed.csv')
+acc_dt <- load_dt(DATA_FOLDER, 'accidents_2017.csv')
 pop_dt <- load_dt(DATA_FOLDER, 'population.csv')
 transport_dt <- load_dt(DATA_FOLDER, 'transports.csv')
 ```
@@ -57,7 +61,7 @@ sprintf("Barcelona number of accidents with victims per 100k: %d", round(barc_ac
 ```
 
 # Data Preparation
-Besides the usual data preparation needed to plot the data, we also cleaned the 'accidents_2017.csv' dataset by adding the correct District name and Neighborhood name to those flagged with "Unknown". This was done with a Python script using the Longitude and Latitude coordinates of the accident and making a request to the OpenStreetMap API.
+During the usual data preparation needed to plot the data, we noticed that some district and neighborhood were marked as "Unkown", so we filled out these gaps in the 'accidents_2017.csv' dataset by adding the correct values. This was done with a Python script using the Longitude and Latitude coordinates of the accident and requesting the information from the OpenStreetMap API^[<https://wiki.openstreetmap.org/wiki/API>].
 
 ```{r, include=FALSE}
 # Proof of dataset cleaning
@@ -108,20 +112,20 @@ trans_x_acc_by_district_dt[, N.Transports := replace_na(N.Transports, 0)]
 
 
 # Data Analysis
-Since Barcelona is the second most populated city in Spain^[From Wikipedia, Accessed 17 January 2022 <https://en.wikipedia.org/wiki/List_of_European_cities_by_population_within_city_limits>], what first comes to mind is that the difference in the accident rate is related to the number of people living in it. 
-We started by investigating how the number of accident vary by district:
+Since Barcelona is the second most populated city in Spain^[From Wikipedia, Accessed 17 January 2022 <https://en.wikipedia.org/wiki/List_of_European_cities_by_population_within_city_limits>], what first comes to mind is that the  number of accidents is related to the number of people living in a district or neighborhood, as that inevitably leads to more traffic.
+We start by simply showing the number of accidents by district:
 
 ```{r acc_distr}
 # TODO: don't know if geom_text is needed, simplify graphic? - clean lines, background, ...
-acc_dt %>% ggplot(aes(x=District.Name)) + 
+acc_dt %>% ggplot(aes(x=fct_infreq(District.Name))) + 
   geom_bar() +
   geom_text(stat='count', aes(label=..count..), vjust=-0.3) +
   labs(x = 'District', y = 'Number of Accidents') +
   theme(axis.text.x = element_text(angle = 45, vjust = 0.95, hjust=0.9))
 
 ```
-
-As expected, there are differences between them so we can test the proposed correlation between population and the number of accidents in that occurred in 2017, comparing different Neighborhoods and Districts:
+One can immediately notice a clear outlier being the Eixample district, which is in fact the most populated, and most visited district in Barcelona, which could explain the exceptionally high number of accidents.
+We proceed by testing the proposed correlation between population and the number of accidents, comparing different Neighborhoods and Districts:
 
 ```{r corr_pop_x_acc, warning=FALSE, fig.width=13, message = FALSE}
 # TODO: adjust, make x axis label centered, same size -> aesthetics
@@ -142,7 +146,7 @@ grid::grid.draw(grid::textGrob("Population", y=0.05, x=0.52))
 
 ```
 
-Although both this correlations are statistically significant (p-value lower than .05 in both cases of the Spearman's rank correlation test), we can notice that there are obvious outliers, namely the district Eixample and some of its neighborhoods (like "la Dreta de l'Eixample" and "l'Antiga Esquerra de l'Eixample").
+Although both these correlations are statistically significant (p-value lower than .05 in both cases of the Spearman's rank correlation test), we can again notice Eixample and some of its neighborhoods (like "la Dreta de l'Eixample" and "l'Antiga Esquerra de l'Eixample") as clear outliers. This can be explained with the touristic focus that lies on this district, which further heightens the traffic. 
 
 ```{r corr_pop_x_acc_tests, include=FALSE}
 # TODO: is "include=FALSE" really what we want?
@@ -154,22 +158,7 @@ print("Population in district vs N Accident")
 cor.test(pop_x_acc_by_district_dt$Number, pop_x_acc_by_district_dt$N.Accidents, method="spearman")
 ```
 
-The distribution of the accidents shouldn't be uniform throughout the day or the week.
-
-```{r acc_hourly, fig.show="hold", out.width="50%"}
-ggplot(acc_dt, aes(x=Hour)) + geom_bar() +labs(y="Number of accidents", title="Number of accidents by Hour")
-
-acc_dt %>%
-  mutate(Weekday=factor(Weekday, levels=c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))) %>%
-  ggplot(aes(x=Weekday)) + geom_bar() +
-  labs(title="Number of accidents by Weekday") +
-  theme(axis.title.y = element_blank())
-```
-
-As we can see, there are three peaks in the number of accidents: around 8-9hours, 13-14hours, and 18-19hours. This leads us to believe that more than the number of people, an important factor would be the traffic/movement since these hours correspond to the _going-to-work-time_, _lunch-time_ and _coming-back-from-work-time_.
-This theory is further proved by the fewer of accidents during the weekend, days that people tend to spend at home.
-
-We don't have any direct metric for the traffic, but we can use the number of transports in a certain area as a proxy for its afflux of people.
+As we don't have any direct metric for the traffic, we attempt use the number of transportation stations in a certain area as a proxy for its afflux of people.
 
 ```{r corr_trans_x_acc, warning=FALSE, fig.width=13, message = FALSE}
 # TODO: adjust, make x axis label centered, same size -> aesthetics -> same as before
@@ -190,7 +179,8 @@ p1 + p2
 grid::grid.draw(grid::textGrob("Number of Transports", y=0.05, x=0.52))
 
 ```
-These correlations are also statistically significant (p-values in the correlation test) and in some cases stronger than the population correlation (rho values: TODO: see if this is true). There still are some outliers (like "l'Antiga Esquerra de l'Eixample"), but it would be naïve of us to assume it would all be explained by only one variable let alone an imperfect heuristic.
+It would be naïve of to assume it would all be explained by only this one variable. The number of stations could very well be connected to the physical area of the district/neighborhood, which obviously means a higher probability of accidents (maybe normalize by area size?).
+However the correlations seem to be stronger than the population correlation the we showed above (rho values: TODO: see if this is true), so it still seems like a good indicator.
 ```{r corr_trans_x_acc_tests, include=FALSE}
 # TODO: is "include=FALSE" really what we want?
 
@@ -208,9 +198,40 @@ One could argue that the number of buses in an area is the real influence here, 
 ```
 
 
+
+Next we will analyse the distribution of the accidents throughout the day and the week.
+
+```{r acc_hourly, fig.show="hold", out.width="50%"}
+ggplot(acc_dt, aes(x=Hour)) + geom_bar() +labs(y="Number of accidents", title="Number of accidents by Hour")
+
+acc_dt %>%
+  mutate(Weekday=factor(Weekday, levels=c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))) %>%
+  ggplot(aes(x=Weekday)) + geom_bar() +
+  labs(title="Number of accidents by Weekday") +
+  theme(axis.title.y = element_blank())
+```
+
+As we can see, there are three peaks in the number of accidents: around 8-9 o'clock, 13-14 o'clock, and 18-19 o'clock. This leads us to believe that the traffic is expecially high at those times, which seems logical since these hours correspond to the _going-to-work-time_, _lunch-time_ and _coming-back-from-work-time_.´
+This theory is further reinforced by the fewer of accidents during the weekend, days that people tend to spend at home.
+
+For further visualization let's show the accident density first in general, and then facetted by the part of the day (Morning: 6-13 o'clock, Afternoon: 14-21 o'clock, Night: 22-5 o'clock) and weekdays.
+```{r}
+d1 <- ggplot(acc_dt, aes(Longitude, Latitude)) + 
+    geom_density2d_filled()
+
+d2 <- ggplot(acc_dt, aes(Longitude, Latitude)) + 
+    geom_density2d_filled() + facet_wrap(~Part.of.the.day)
+
+d1
+d2
+```
+What is interesting here, is that the density focuses into one central point, namely the Eixample disctrict (calculated from the Long and Lat variables).
+Looking at the plot facetted by part of the day, we can clearly see that accidents in areas leading from/to the center get more dense during the morning and afternoon. This further proves our theory from above.
+
+
 To better understand the nature of the accidents, a prediction task was made using logistic regression. In this prediction, part of the day of the accident (which was categorized as morning and non-morning, includes "afternoon" and "night") was tried to guessed using features the features "district name", "weekday", "month", "mild injuries", "serious injuries", "victims", "vehicles involved". After the model was built, the confusion matrix and the accuracy of the model was computed and printed to show the performance our prediction.
 
-```{r log_reg include = FALSE warning = FALSE}
+```{r log_reg, include=FALSE, warning = FALSE}
 
 
 
