@@ -23,6 +23,9 @@ library(ppcor)
 library(patchwork)
 library(forcats)
 library(ggpubr)
+
+library(ggplot2)
+library(pROC)
 ```
 
 ```{r dts}
@@ -389,7 +392,7 @@ Looking at the plot facetted by part of the day, we can clearly see that acciden
 ### Logistic Regression 
 To better understand the nature of the accidents, a prediction task was made using logistic regression. In this prediction, part of the day of the accident (which was categorized as morning and non-morning, which includes "afternoon" and "night") was guessed using the features "district name", "weekday", "month", "mild injuries", "serious injuries", "victims", "vehicles involved". Morning is annotated as 0, and "Non-morning" is annotated as 1.
 
-```{r log_reg, include=FALSE, warning = FALSE}
+```{r log_reg, include=TRUE, warning = FALSE, message = FALSE, fig.show="hold"}
 
 
 # Create the input data frame.
@@ -448,7 +451,14 @@ print(confusion_matrix)
 
 # Calculating accuracy
 missing_classerr <- mean(predict_reg != data_test$Part.of.the.day)
-print(paste('Accuracy =', 1 - missing_classerr))
+print(paste('Model Accuracy (using mean() function) :', 1 - missing_classerr))
+
+# Calculate ROC Curve and AUC. Plot afterwards. 
+rocobj <- roc(data_test$Part.of.the.day, predict_reg)
+auc <- round(auc(data_test$Part.of.the.day, predict_reg),4)
+
+ggroc(rocobj, colour = 'steelblue', size = 2) +
+  ggtitle(paste0('ROC Curve ', '(AUC = ', auc, ')'))
 
 ```
 
