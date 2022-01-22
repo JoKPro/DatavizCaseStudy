@@ -24,6 +24,7 @@ library(patchwork)
 library(forcats)
 library(ggpubr)
 library(viridis)
+library(pROC)
 ```
 
 ```{r dts}
@@ -358,31 +359,30 @@ acc_dt %>%
 What is interesting here, is that the density focuses into one central point, namely the Eixample disctrict (calculated from the Long and Lat variables). We can clearly see that accidents in areas leading from/to (especially south and north) the center get more dense during the morning and afternoon. This further proves the above theory.
 
 
-### Logistic Regression 
-To better understand the nature of the accidents, a prediction task was made using logistic regression. In this prediction, part of the day of the accident (which was categorized as morning and non-morning, which includes "afternoon" and "night") was guessed using the features "district name", "weekday", "month", "mild injuries", "serious injuries", "victims", "vehicles involved".
+### Part of the Day Prediction - Logistic Regression 
 
-```{r log_reg, include=FALSE}
+To better understand the nature of the accidents, a prediction task was made using logistic regression. In this prediction, part of the day of the accident (which was categorized as morning and non-morning, which includes "afternoon" and "night") was guessed using the features "district name", "weekday", "month", "mild injuries", "serious injuries", "victims", "vehicles involved". Morning is annotated as 0, and "Non-morning" is annotated as 1.
 
+```{r log_reg, message = FALSE, results="hide", fig.keep="all", out.width="49%"}
 
+# fig.show="hold", fig.height = 4, out.height="25%", fig.align = "center",
 
 # Create the input data frame.
-data_dt_1 <- acc_dt[c(1:10339),c(2,5,6,7,8,9,10,11,12,13)] # starting from the 1st data point to all the end. 
+data_dt_1 <- acc_dt[, c(2,5,6,7,8,9,10,11,12,13)] # starting from the 1st data point to all the end. 
 
 # trying to guess: part of the days morning, not-morning (afternoon, night)
 # features: district name, weekday, month, mild injuries, serious injuries, victims, vehicles involved 
 
 # Encoding categorical data columns.
-data_dt_1$District.Name = factor(data_dt_1$District.Name, level = c("Sant MartÃ­", "Ciutat Vella", "Eixample", "Sants-MontjuÃ¯c",  "Les Corts",  "SarriÃ -Sant Gervasi", "GrÃ cia",
-                                                                   "Horta-GuinardÃ³","Nou Barris", "Sant Andreu"), labels = c(1,2,3,4,5,6,7,8,9,10))
-data_dt_1$Weekday = factor(data_dt_1$Weekday, level = c("Friday", "Thursday", "Wednesday", "Saturday", "Tuesday", "Monday","Sunday"), labels = c(5,4,3,6,2,1,7))
-data_dt_1$Month = factor(data_dt_1$Month, level = c("October","September", "December", "July", "May", "June","January", "April", "March", "November", "February", "August" ),
+data_dt_1$District.Name <- as.numeric(as.factor(data_dt_1$District.Name))
+data_dt_1$Weekday <- factor(data_dt_1$Weekday, level = c("Friday", "Thursday", "Wednesday", "Saturday", "Tuesday", "Monday","Sunday"), labels = c(5,4,3,6,2,1,7))
+data_dt_1$Month <- factor(data_dt_1$Month, level = c("October","September", "December", "July", "May", "June","January", "April", "March", "November", "February", "August" ),
                          labels = c(10,9,12,7,5,6,1,4,3,11,2,8))
 data_dt_1$Part.of.the.day = factor(data_dt_1$Part.of.the.day, level = c( "Morning", "Afternoon", "Night"), labels = c(0,1,1))
 
 
 
 # shuffling the data
-
 shuffle_index <- sample(1:nrow(data_dt_1))
 data_dt_2 <- data_dt_1[shuffle_index, ] 
 
@@ -394,7 +394,7 @@ create_train_test <- function(data, size = 0.8, train = TRUE) {
   train_sample <- 1: total_row
   if (train == TRUE) {
     return (data[train_sample, ])
-  } else {c
+  } else {
     return (data[-train_sample, ])
   }
 }
@@ -403,29 +403,61 @@ create_train_test <- function(data, size = 0.8, train = TRUE) {
 data_train <- create_train_test(data_dt_2, 0.8, train = TRUE)
 data_test <- create_train_test(data_dt_2, 0.8, train = FALSE)
 
-# Building our multiple logistic regression model
+# Building Multiple logistic regression model
 
 multi_logistic_model <- glm(Part.of.the.day ~ District.Name + Weekday + Month + Day + Hour + Mild.injuries + Serious.injuries + Victims + Vehicles.involved, data = data_train, family = "binomial")
-multi_logistic_model
-# summary(multi_logistic_model)
 
-# Doing prediction
+# Prediction & Classification
 predict_reg <- predict(multi_logistic_model, data_test, type = "response")
- 
-
-# Hard classification
 predict_reg <- ifelse(predict_reg >0.5, 1, 0)
 
 # Evaluating model accuracy using confusion matrix
-confusion_matrix = table(data_test$Part.of.the.day, predict_reg)
-
-print(confusion_matrix)
+confusion_matrix <- data.table(table(data_test$Part.of.the.day, predict_reg))
+plot_conf_matrix <- confusion_matrix %>%
+  mutate(goodbad := ifelse(confusion_matrix$predict_reg == confusion_matrix$V2, "good", "bad")) %>%
+  group_by(V2) %>%
+  mutate(prop = N/sum(N))
 
 # Calculating accuracy
-missing_classerr <- mean(predict_reg != data_test$Part.of.the.day)
-print(paste('Accuracy =', 1 - missing_classerr))
+missing_class <- mean(predict_reg != data_test$Part.of.the.day)
+print(paste('Model Accuracy (using mean() function) :', 1 - missing_class))
+
+# Plot Conf Matrix
+# fill alpha relative to sensitivity/specificity by proportional outcomes within reference groups 
+ggplot(plot_conf_matrix, aes(x = V2, y = predict_reg, fill = goodbad, alpha = prop)) +
+  geom_tile() +
+  geom_text(aes(label = N), vjust = .5, alpha = 1) +
+  scale_fill_manual(values = c(good = "green", bad = "red")) +
+  scale_x_discrete(labels=c("0" = "Morning", "1" = "Non-Morning")) + 
+  scale_y_discrete(labels=c("0" = "Morning", "1" = "Non-Morning")) + 
+  labs(title=paste0('Confusion Matrix (Overall Accuracy:  ', round(1 - missing_class, 3), ')'), x="True Label", y="Predicted Label") +
+  guides(fill="none", alpha="none") + 
+  theme_bw()
+
+# Calculate ROC Curve and AUC. Plot afterwards. 
+rocobj <- roc(data_test$Part.of.the.day, predict_reg)
+auc <- round(auc(data_test$Part.of.the.day, predict_reg),4)
+
+ggroc(rocobj, colour = 'steelblue', size = 2) +
+  ggtitle(paste0('ROC Curve ', '(AUC = ', auc, ')')) 
 
 ```
+```{r}
+
+# ggplot(data = data.table(confusion_matrix),
+#        mapping = aes(x = predict_reg,
+#                      y = V2)) +
+#   geom_tile(aes(fill = N), colour = "white") +
+#   geom_text(aes(label = sprintf("%1.0f", N)), vjust = 1) +
+#   scale_fill_gradient(low = "white", high = "yellow", trans="log") +
+#   theme_bw() + theme(legend.position = "none")
+
+
+
+
+```
+
+
 
 # Conclusions
 
