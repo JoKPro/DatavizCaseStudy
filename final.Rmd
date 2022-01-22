@@ -1,5 +1,5 @@
 ---
-title: "Analysis of Car Accidents in Barcelona"
+title: \vspace{-1cm} Analysis of Car Accidents in Barcelona
 author: "Ivan Iliash, Johann Promeuschel, Manuel Coutinho, Onat Kaya"
 date: "`r Sys.Date()`"
 output:
@@ -10,7 +10,7 @@ subtitle: Data Analysis and Visualization in R (IN2339) - Case Study
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
 ```
 
 ```{r libraries, include=FALSE}
@@ -23,6 +23,7 @@ library(ppcor)
 library(patchwork)
 library(forcats)
 library(ggpubr)
+library(viridis)
 ```
 
 ```{r dts}
@@ -34,7 +35,7 @@ load_dt <- function(folder, file){
   return(dt)
 }
 
-acc_dt <- load_dt(DATA_FOLDER, 'accidents_2017.csv')
+acc_dt <- load_dt(DATA_FOLDER, 'accidents_2017_fixed.csv')
 pop_dt <- load_dt(DATA_FOLDER, 'population.csv')
 transport_dt <- load_dt(DATA_FOLDER, 'transports.csv')
 bus_dt <- load_dt(DATA_FOLDER, "bus_stops.csv")
@@ -83,11 +84,11 @@ df <- data.table(df)
 # Motivation and Goals
 
 In 2017, with a population of about 1.621 million, the capital of Catalonia had an accident rate way above the national average (582 vs 219^[From Dirección General de Tráfico, Accessed 16 January 2022 <https://revista.dgt.es/es/noticias/nacional/2018/07JULIO/0712-Siniestralidad-2017.shtml>] accidents with victims per 100.000 inhabitants).
-In an attempt of mitigating the high number of accidents that occurred in the city of Barcelona, we show a collection of different findings that we made during the analysis and try to interpret some of these properties connected with the city's population, amount of public transport in certain areas, as well as time and location of accidents.
+In an attempt of mitigating the high number of accidents that occurred in the city of Barcelona, we show a collection of different findings that we made during the analysis and try to interpret some of the results related with the city's population, amount of public transport in certain areas, as well as time and location of accidents.
 
 
 
-```{r goals, include=FALSE}
+```{r goals, results="hide"}
 # National Accident with victims rate:
 total_accidents_with_victims <- 102233 #from source [1]
 total_population <- 46658447 # from Wikipedia
@@ -103,7 +104,7 @@ sprintf("Barcelona number of accidents with victims per 100k: %d", round(barc_ac
 ```
 
 # Data Preparation
-During the usual data preparation needed to plot the data, we noticed that some district and neighborhood were marked as "Unkown", so we filled out these gaps in the 'accidents_2017.csv' dataset by adding the correct values. This was done with a Python script using the Longitude and Latitude coordinates of the accident and requesting the information from the OpenStreetMap API^[<https://wiki.openstreetmap.org/wiki/API>].
+During the usual data preparation needed to plot the data, we noticed that some district and neighborhood were marked as "Unkown", so we filled out these gaps in the 'accidents_2017_fixed.csv' dataset by adding the correct values. This was done with a Python script using the Longitude and Latitude coordinates of the accident and requesting the information from the OpenStreetMap API^[<https://wiki.openstreetmap.org/wiki/API>].
 
 ```{r, include=FALSE}
 # Proof of dataset cleaning
@@ -113,6 +114,7 @@ sprintf("Number of Unkown Districts before cleaning vs after: %d - %d",
 
 # 2017 Population x Accident Aggregated by District or Neighborhood
 pop2017_dt <- pop_dt[Year == 2017]
+
 
 # TODO: passing column names as argument is not working
 # prepare_pop_x_acc <- function(pop_dt, acc_dt, aggr.variable){
@@ -157,28 +159,29 @@ trans_x_acc_by_district_dt[, N.Transports := replace_na(N.Transports, 0)]
 Since Barcelona is the second most populated city in Spain^[From Wikipedia, Accessed 17 January 2022 <https://en.wikipedia.org/wiki/List_of_European_cities_by_population_within_city_limits>], what first comes to mind is that the  number of accidents is related to the number of people living in a district or neighborhood, as that inevitably leads to more traffic.
 We start by simply showing the number of accidents by district:
 
-```{r acc_distr}
+```{r acc_distr, fig.height = 5, out.height="30%", fig.align = "center", fig.width=7}
 # TODO: don't know if geom_text is needed, simplify graphic? - clean lines, background, ...
 acc_dt %>% ggplot(aes(x=fct_infreq(District.Name))) + 
   geom_bar() +
   geom_text(stat='count', aes(label=..count..), vjust=-0.3) +
   labs(x = 'District', y = 'Number of Accidents') +
-  theme(axis.text.x = element_text(angle = 45, vjust = 0.95, hjust=0.9))
+  theme(axis.text.x = element_text(angle = 30, vjust = 0.95, hjust=0.65))
 
 ```
-One can immediately notice a clear outlier being the Eixample district, which is in fact the most populated, and most visited district in Barcelona, which could explain the exceptionally high number of accidents.
-We proceed by testing the proposed correlation between population and the number of accidents, comparing different Neighborhoods and Districts:
 
-```{r corr_pop_x_acc, warning=FALSE, fig.width=13, message = FALSE}
+One can immediately notice a clear outlier: the Eixample district. This is, in fact, the most populated, and most visited district in Barcelona, which could explain the exceptionally high number of accidents.
+We proceed by testing this proposed correlation, comparing different Neighborhoods and Districts:
+
+```{r corr_pop_x_acc, fig.width=13, message = FALSE}
 # TODO: adjust, make x axis label centered, same size -> aesthetics
 
 p1 <- pop_x_acc_by_neighboorhood_dt %>% 
-  ggplot(aes(x=Number,y=N.Accidents)) + geom_point() + stat_smooth(method="lm") + 
+  ggplot(aes(x=Number,y=N.Accidents)) + geom_point(alpha = 0.5) + stat_smooth(method="lm") + 
   geom_text_repel(aes(label=Neighborhood.Name)) +
   labs(x = '', y = 'Number of Accidents', title = "Number of Accidents by Neighborhood Population") +
   theme(plot.title = element_text(size=14, margin=margin(b=14)))
 p2 <- pop_x_acc_by_district_dt %>% 
-  ggplot(aes(x=Number,y=N.Accidents)) + geom_point() + stat_smooth(method="lm") + 
+  ggplot(aes(x=Number,y=N.Accidents)) + geom_point(alpha = 0.5) + stat_smooth(method="lm") + 
   geom_text_repel(aes(label=District.Name)) +
   labs(x='', y='', title = "Number of Accidents by District Population") +
   theme(plot.title = element_text(size=14, margin=margin(b=14)))
@@ -188,9 +191,9 @@ grid::grid.draw(grid::textGrob("Population", y=0.05, x=0.52))
 
 ```
 
-Although both these correlations are statistically significant (p-value lower than .05 in both cases of the Spearman's rank correlation test), we can again notice Eixample and some of its neighborhoods (like "la Dreta de l'Eixample" and "l'Antiga Esquerra de l'Eixample") as clear outliers. This can be explained with the touristic focus that lies on this district, which further heightens the traffic. 
+Although both these correlations are statistically significant (p-value lower than .05 in both cases of the Spearman's rank correlation test), we can again notice Eixample and some of its neighborhoods (like "la Dreta de l'Eixample" and "l'Antiga Esquerra de l'Eixample") as clear outliers. This could be explained by the centrality of this district, which further heightens the traffic. 
 
-```{r corr_pop_x_acc_tests, include=FALSE}
+```{r corr_pop_x_acc_tests, results="hide"}
 # TODO: is "include=FALSE" really what we want?
 
 print("Population in neighboorhood vs N Accident")
@@ -202,19 +205,19 @@ cor.test(pop_x_acc_by_district_dt$Number, pop_x_acc_by_district_dt$N.Accidents, 
 
 As we don't have any direct metric for the traffic, we attempt use the number of transportation stations in a certain area as a proxy for its afflux of people.
 
-```{r corr_trans_x_acc, warning=FALSE, fig.width=13, message = FALSE}
+```{r corr_trans_x_acc, fig.width=13, message = FALSE}
 # TODO: adjust, make x axis label centered, same size -> aesthetics -> same as before
 
 p1 <- trans_x_acc_by_neighborhood_dt %>% 
-  ggplot(aes(x=N.Transports,y=N.Accidents)) + geom_point() + stat_smooth(method="lm") + 
+  ggplot(aes(x=N.Transports,y=N.Accidents)) + geom_point(alpha = 0.5) + stat_smooth(method="lm") + 
   geom_text_repel(aes(label=Neighborhood.Name)) +
-  labs(x = '', y = 'Number of Accidents', title = "Number of Accidents by Number of Transports in the Neighborhood") +
+  labs(x = '', y = 'Number of Accidents', title = "Number of Accidents against Transports in the Neighborhood") +
   theme(plot.title = element_text(size=14, margin=margin(b=14)))
 
 p2 <- trans_x_acc_by_district_dt %>% 
-  ggplot(aes(x=N.Transports,y=N.Accidents)) + geom_point() + stat_smooth(method="lm") + 
+  ggplot(aes(x=N.Transports,y=N.Accidents)) + geom_point(alpha = 0.5) + stat_smooth(method="lm") + 
   geom_text_repel(aes(label=District.Name)) +
-  labs(x='', y='', title = "Number of Accidents by Number of Transports in the District") +
+  labs(x='', y='', title = "Number of Accidents against Transports in the District") +
   theme(plot.title = element_text(size=14, margin=margin(b=14)))
 
 p1 + p2
@@ -223,7 +226,7 @@ grid::grid.draw(grid::textGrob("Number of Transports", y=0.05, x=0.52))
 ```
 It would be naïve of to assume it would all be explained by only this one variable. The number of stations could very well be connected to the physical area of the district/neighborhood, which obviously means a higher probability of accidents (maybe normalize by area size?).
 However the correlations seem to be stronger than the population correlation the we showed above (rho values: TODO: see if this is true), so it still seems like a good indicator.
-```{r corr_trans_x_acc_tests, include=FALSE}
+```{r corr_trans_x_acc_tests, results='hide'}
 # TODO: is "include=FALSE" really what we want?
 
 print("Number of Transports in neighboorhood vs N Accident")
@@ -237,64 +240,33 @@ cor.test(trans_x_acc_by_district_dt$N.Transports, trans_x_acc_by_district_dt$N.A
 
 One could argue that the number of buses in an area is the real influence here.  
 
-```{r echo=FALSE, results="hide", fig.keep="all", message=FALSE, running=FALSE, warning = FALSE}
-
-df_melt <- melt(df, id.vars = c("Neighborhood.Name", "accidents"), variable.name = "group", 
-                value.name = "value")
+```{r cof_var, message=FALSE, out.width="49%"}
 
 
-p1 <- ggplot(df) + geom_point(aes(bus_stops, accidents, color = "bus_stops")) + 
-  geom_point(aes(transports, accidents, color = "transports")) + 
-  geom_smooth(mapping=aes(bus_stops, accidents), method = "lm",
-              color = "red") + 
-  geom_smooth(mapping=aes(transports, accidents), method = "lm", alpha = 0.2,
-              se = TRUE, color = "cyan") +
-  xlab(label = "transport and bus stops") + 
-  ggtitle("Positive correlation between transport/bus stops and accidents") 
-  theme_light()
-  
-p1
-```
-```{r echo=FALSE, results="hide", fig.keep="all", message=FALSE, running=FALSE}
-p2 <- ggplot(df, aes(transports, bus_stops)) + geom_point() +
+ggplot(df) + geom_point(aes(bus_stops, accidents, color = "Bus")) + 
+  geom_point(aes(transports, accidents, color = "Transports")) + 
+  geom_smooth(aes(bus_stops, accidents, color = "Bus"), method = "lm") + 
+  geom_smooth(aes(transports, accidents, color = "Transports"), method = "lm") +
+  labs(x = "Number of stops", y="Number of accidents", title = "Correlation between Stops and Accidents by Neighborhood", color="Stop type") +
+  guides(color=guide_legend(override.aes=list(fill=NA))) +
+  theme(legend.position = c(0.93, 0.1))
+
+ggplot(df, aes(transports, bus_stops)) + geom_point(alpha = 0.5) +
   geom_smooth(method = "lm") + 
-  ggtitle("Positive correlation between transport and bus stops")
-  theme_light()
-
-p2
+  labs(title = "Correlation between Transport and Bus stops in a Neighborhood", x="Number of transport stops", y="Number of bus stops")
 ```
 
-The two graphs above show that both the number bus stops and other transport stops in each neighborhood are positively associated with accidents and that also transports and bus stops are correlated themselves. It is possible that bus stops are a confounding variable in the correlation between transport stops and accidents. Thus, it is necessary to check the correlation again while keeping the number of bus stops constant
+The two graphs above show that both the number bus stops and other transport stops in each neighborhood are positively associated with accidents and that also transports and bus stops are correlated themselves. It is possible that bus stops are a confounding variable in the correlation between transport stops and accidents. Thus, it is necessary to check the correlation again while keeping the number of bus stops constant.
 
-```{r echo=FALSE, results="hide", fig.keep="all"}
+```{r message=FALSE, fig.height = 5, fig.width=7, out.height="40%", fig.align = "center"}
 
-normalize = function(array){
-  res <- sapply(array, function(x){
-    (x-min(array))/(max(array)-min(array))
-  })
-}
-
-
-# dat <- df[, bus_strata := with(df, cut(bus_stops, breaks = seq(0, 137, 15), labels = c("0-15", "15-30", 
-#                                                                 "30-45", "45-60",
-#                                                                 "60-75", "75-90",
-#                                                                 "90-105", "105-120",
-#                                                                 "120-135")))]
-
-dat <- df[, bus_strata := with(df, cut(bus_stops, breaks = c(0, 30, 60, 90, 137), 
-                                       labels = c("0-30","31-60","61-90", ">90")))]
-
-#dat_normalized <- df[, c("bus_stops", "transports") := .(normalize(bus_stops),
-#                                                         normalize(transports))]
-
-dat %>%
+df[, bus_strata := with(df, cut(bus_stops, breaks = c(0, 30, 60, 90, 137),  
+                                labels = c("0-30","31-60","61-90", ">90")))] %>%
   ggplot(aes(transports, accidents)) + 
   geom_point(alpha = 0.5) + 
   geom_smooth(method = "lm") + 
   facet_wrap(~ bus_strata, scales = "free") + 
-  ggtitle("Positive correlation accidents x transports",
-          subtitle = "controlling for binned numbers of bus stops")
-  theme_light()
+  labs(x="Number of accidents", y ="Number of transport stops", title="Correlation Accidents by Transports controlled for the Number of Bus Stops")
   
 ```
 
@@ -345,12 +317,12 @@ A positive correlation between accidents and transport stops of about 0.65 still
 <!-- ``` -->
 <!-- The results of the linear model suggest some predictive value of the variables bus stops and transport stops. However, one needs to be careful in drawing conclusions about the causality regarding the correlation between the number of different kinds of transport station and the number of accidents. The results of the model do not show that increasing the number of transport or bus stops causes an increase in accidents. ´ -->
 
-#########
 
 
+### Afflux throught the day
 
 
-Next we will analyse the distribution of the accidents throughout the day and the week.
+If our hypothesis is that the accidents are due to the afflux of people, we would expect their distribution throughout the day or the week not to be uniform.
 
 ```{r acc_hourly, fig.show="hold", out.width="50%"}
 ggplot(acc_dt, aes(x=Hour)) + geom_bar() +labs(y="Number of accidents", title="Number of accidents by Hour")
@@ -362,34 +334,34 @@ acc_dt %>%
   theme(axis.title.y = element_blank())
 ```
 
-As we can see, there are three peaks in the number of accidents: around 8-9 o'clock, 13-14 o'clock, and 18-19 o'clock. This leads us to believe that the traffic is expecially high at those times, which seems logical since these hours correspond to the _going-to-work-time_, _lunch-time_ and _coming-back-from-work-time_.´
+As we can see, there are three peaks in the number of accidents: around 8-9 o'clock, 13-14 o'clock, and 18-19 o'clock. This leads us to believe that the traffic is expecially high at those times, which seems logical since these hours correspond to the _going-to-work-time_, _lunch-time_ and _coming-back-from-work-time_.
 This theory is further reinforced by the fewer of accidents during the weekend, days that people tend to spend at home.
 
-For further visualization let's show the accident density first in general, and then facetted by the part of the day (Morning: 6-13 o'clock, Afternoon: 14-21 o'clock, Night: 22-5 o'clock) and weekdays.
+For further visualization let's show the accident density first in general, and then facetted by the part of the day (Morning: 6-13 o'clock, Afternoon: 14-21 o'clock, Night: 22-5 o'clock).
 
 
-```{r}
-d1 <- ggplot(acc_dt, aes(Longitude, Latitude)) + 
-    geom_density2d_filled() + labs(title = "2D density of accidents in Barcelona") + theme(axis.text.x=element_blank(),
-        axis.ticks.x=element_blank(), axis.text.y=element_blank(), axis.ticks.y=element_blank()) + guides(fill='none')
-
-
-d2 <- ggplot(acc_dt, aes(Longitude, Latitude)) + 
-    geom_density2d_filled() + labs(title = "faceted by part of the day") +facet_wrap(~Part.of.the.day) + theme(axis.text.x=element_blank(),
-        axis.ticks.x=element_blank(), axis.text.y=element_blank(), axis.ticks.y=element_blank(), axis.title.x=element_blank(), axis.title.y=element_blank()) + guides(fill='none')
-
-
-d1+d2
+```{r acc_density, fig.height=2.8, fig.align = "center"}
+acc_dt %>%
+  mutate(Part.of.the.day=factor(Part.of.the.day, levels=c("Morning", "Afternoon", "Night"))) %>%
+  ggplot(aes(Longitude, Latitude)) + 
+  stat_density_2d(aes(fill = ..level..), geom = "polygon", binwidth=51) +
+  labs(title = "Density of accidents in Barcelona by Part of the Day", fill="Number of Accidents") + 
+  facet_wrap(~Part.of.the.day) +
+  scale_fill_viridis() +
+  theme(axis.text.x=element_blank(), axis.ticks.x=element_blank(), 
+        axis.text.y=element_blank(), axis.ticks.y=element_blank(),
+        legend.title = element_text(size=8),
+        title = element_text(size=8),
+        panel.grid = element_blank()) 
 
 ```
-What is interesting here, is that the density focuses into one central point, namely the Eixample disctrict (calculated from the Long and Lat variables).
-Looking at the plot facetted by part of the day, we can clearly see that accidents in areas leading from/to (especially south and north) the center get more dense during the morning and afternoon. This further proves our theory from above.
+What is interesting here, is that the density focuses into one central point, namely the Eixample disctrict (calculated from the Long and Lat variables). We can clearly see that accidents in areas leading from/to (especially south and north) the center get more dense during the morning and afternoon. This further proves the above theory.
 
 
 ### Logistic Regression 
 To better understand the nature of the accidents, a prediction task was made using logistic regression. In this prediction, part of the day of the accident (which was categorized as morning and non-morning, which includes "afternoon" and "night") was guessed using the features "district name", "weekday", "month", "mild injuries", "serious injuries", "victims", "vehicles involved".
 
-```{r log_reg, include=FALSE, warning = FALSE}
+```{r log_reg, include=FALSE}
 
 
 
