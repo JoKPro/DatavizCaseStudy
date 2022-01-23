@@ -366,5 +366,6 @@ ggroc(rocobj, colour = 'steelblue', size = 2) +
 
 Most of the analysis leads us to one central and admittedly obvious conclusion: the more traffic there is at a given time and location, the more likely accidents are to happen.
 Therefore Eixample, being the most populated and most touristically visited district, has the highest number of accidents.
- In increasingly expanding cities, people start to move to the outskirts (due to different factors like house pricing), traveling daily to the center from and to work, which is noticeable in the accident density plot of the city. We could also show that, the number of transportation/bus stations can be used as a good proxy for the amount of traffic in a given area, which in turn again influences the number of accidents.
+
+In increasingly expanding cities, people start to move to the outskirts (due to different factors like house pricing), traveling daily to the center from and to work, which is noticeable in the accident density plot of the city. We could also show that, the number of transportation/bus stations can be used as a good proxy for the amount of traffic in a given area, which in turn again influences the number of accidents.
 
