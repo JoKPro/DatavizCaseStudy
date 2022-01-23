@@ -35,7 +35,7 @@ load_dt <- function(folder, file){
   return(dt)
 }
 
-acc_dt <- load_dt(DATA_FOLDER, 'accidents_2017_fixed.csv')
+acc_dt <- load_dt(DATA_FOLDER, 'accidents_2017.csv')
 pop_dt <- load_dt(DATA_FOLDER, 'population.csv')
 transport_dt <- load_dt(DATA_FOLDER, 'transports.csv')
 bus_dt <- load_dt(DATA_FOLDER, "bus_stops.csv")
@@ -362,12 +362,9 @@ ggroc(rocobj, colour = 'steelblue', size = 2) +
 ```
 
 
-# Conclusions
+# Conclusion
 
-TODO:
-
-One crucial conclusion derived from the data is that where people move to is as important (or more) as to where they live. 
-In increasingly expanding cities, people start to move to the outskirts (due to different factors like house pricing),  traveling daily to the center to work. Although we can't be sure this is the reason for the number of accidents in Eixample, we can notice looking at the map that this is indeed the most touristic and central district of Barcelona.
-
-TODO: maybe image of the map
+Most of the analysis leads us to one central and admittedly obvious conclusion: the more traffic there is at a given time and location, the more likely accidents are to happen.
+Therefore Eixample, being the most populated and most touristically visited district, has the highest number of accidents.
+ In increasingly expanding cities, people start to move to the outskirts (due to different factors like house pricing), traveling daily to the center from and to work, which is noticeable in the accident density plot of the city. We could also show that, the number of transportation/bus stations can be used as a good proxy for the amount of traffic in a given area, which in turn again influences the number of accidents.
 
