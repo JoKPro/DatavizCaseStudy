@@ -42,46 +42,6 @@ transport_dt <- load_dt(DATA_FOLDER, 'transports.csv')
 bus_dt <- load_dt(DATA_FOLDER, "bus_stops.csv")
 ```
 
-```{r}
-
-# IGNORE (my (johann) data preparation)
-
-
-accidents_neighborhood <-acc_dt[, .(accidents = .N), Neighborhood.Name]
-accidents_neighborhood <- accidents_neighborhood[order(tolower(accidents_neighborhood$Neighborhood.Name)),]
-accidents_neighborhood <- accidents_neighborhood[!(accidents_neighborhood$Neighborhood.Name == "Unknown")]
-
-# bus stops
-stops_neighborhood <- bus_dt[, .(bus_stops = .N), Neighborhood.Name]
-stops_neighborhood$Neighborhood.Name[stops_neighborhood$Neighborhood.Name == ""] <- "unknown"
-stops_neighborhood <- stops_neighborhood[!(stops_neighborhood$Neighborhood.Name == "unknown")]
-stops_neighborhood <- stops_neighborhood[order(tolower(stops_neighborhood$Neighborhood.Name)),]
-
-# transport
-transport_neighborhood <- transport_dt[, .(transports = .N), Neighborhood.Name]
-transport_neighborhood$Neighborhood.Name[transport_neighborhood$Neighborhood.Name == ""] <- "unknown"
-transport_neighborhood <- transport_neighborhood[!(transport_neighborhood$Neighborhood.Name == "unknown")]
-missing <- setdiff(stops_neighborhood$Neighborhood.Name, transport_neighborhood$Neighborhood.Name)
-tmp <- data.table(Neighborhood.Name = missing, transports = rep(0, 10))
-transport_neighborhood <- rbind(transport_neighborhood, tmp)
-transport_neighborhood <- transport_neighborhood[order(tolower(transport_neighborhood$Neighborhood.Name)),]
-
-# population
-pop_neighborhood <- pop_dt[Year == "2017", .(population = sum(Number)), by=Neighborhood.Name]
-pop_neighborhood$Neighborhood.Name[pop_neighborhood$Neighborhood.Name == ""] <- "unknown"
-pop_neighborhood <- pop_neighborhood[!(pop_neighborhood$Neighborhood.Name == "unknown")]
-missing <- setdiff(stops_neighborhood$Neighborhood.Name, pop_neighborhood)
-tmp <- data.table(Neighborhood.Name = missing, population = NA)
-pop_neighborhood <- rbind(pop_neighborhood, tmp)
-pop_neighborhood <- pop_neighborhood[order(tolower(transport_neighborhood$Neighborhood.Name)), ]
-
-df <- accidents_neighborhood %>% .[, `:=` (bus_stops=stops_neighborhood$bus_stops, 
-                                           transports=transport_neighborhood$transports,
-                                           population=pop_neighborhood$population)]
-df <- data.table(df)
-``` 
-
-
 # Motivation and Goals
 
 In 2017, with a population of about 1.621 million, the capital of Catalonia had an accident rate way above the national average (582 vs 219^[From Dirección General de Tráfico, Accessed 16 January 2022 <https://revista.dgt.es/es/noticias/nacional/2018/07JULIO/0712-Siniestralidad-2017.shtml>] accidents with victims per 100.000 inhabitants).
@@ -107,7 +67,7 @@ sprintf("Barcelona number of accidents with victims per 100k: %d", round(barc_ac
 # Data Preparation
 During the usual data preparation needed to plot the data, we noticed that some district and neighborhood were marked as "Unkown", so we filled out these gaps in the 'accidents_2017_fixed.csv' dataset by adding the correct values. This was done with a Python script using the Longitude and Latitude coordinates of the accident and requesting the information from the OpenStreetMap API^[<https://wiki.openstreetmap.org/wiki/API>].
 
-```{r, include=FALSE}
+```{r data_prep, results='hide'}
 # Proof of dataset cleaning
 sprintf("Number of Unkown Districts before cleaning vs after: %d - %d", 
         nrow(load_dt(DATA_FOLDER, 'accidents_2017.csv')[District.Name == 'Unknown']), 
@@ -116,43 +76,28 @@ sprintf("Number of Unkown Districts before cleaning vs after: %d - %d",
 # 2017 Population x Accident Aggregated by District or Neighborhood
 pop2017_dt <- pop_dt[Year == 2017]
 
-
-# TODO: passing column names as argument is not working
-# prepare_pop_x_acc <- function(pop_dt, acc_dt, aggr.variable){
-#   pop_by_var_dt <- aggregate(list(Number=pop_dt$Number), by=list(aggr.variable=pop_dt$aggr.variable), FUN=sum)
-#   acc_by_var_dt <- acc_dt[, .N, by=aggr.variable]
-#   return(merge(pop_by_var_dt, acc_by_var_dt, by=aggr.variable))
-# }
-
-# pop_x_acc_by_neighboorhood_dt <- prepare_pop_x_acc(pop2017_dt, acc_dt=acc_dt, aggr.variable = 'Neighborhood.Name')
-# pop_x_acc_by_district_dt <- prepare_pop_x_acc(aggr.variable = 'District.Name')
-
-
-pop_by_district_dt <- aggregate(list(Number=pop2017_dt$Number), by=list(District.Name=pop2017_dt$District.Name), FUN=sum)
-pop_by_neighborhood_dt <- aggregate(list(Number=pop2017_dt$Number), by=list(Neighborhood.Name=pop2017_dt$Neighborhood.Name), FUN=sum)
+pop_by_district_dt <- pop2017_dt[, .(N.Pop = sum(Number)), by=District.Name]
+pop_by_neighborhood_dt <- pop2017_dt[, .(N.Pop = sum(Number)), by=Neighborhood.Name]
+pop_by_neighborhood_dt[Neighborhood.Name == "el Poble Sec", Neighborhood.Name := "el Poble-sec"]
 
 # Accidents by Neighborhood and by District
-acc_by_neighboorhood_dt <- acc_dt[, .N, by=Neighborhood.Name]
-setnames(acc_by_neighboorhood_dt, "N", "N.Accidents")
-acc_by_district_dt <- acc_dt[, .N, by=District.Name]
-setnames(acc_by_district_dt, "N", "N.Accidents")
+acc_by_neighboorhood_dt <- acc_dt[, .(N.Accidents = .N), by=Neighborhood.Name]
+acc_by_district_dt <- acc_dt[, .(N.Accidents = .N), by=District.Name]
 
-# Accidents by Population Datasets
-pop_x_acc_by_neighboorhood_dt <- merge(pop_by_neighborhood_dt, acc_by_neighboorhood_dt, by='Neighborhood.Name')
-pop_x_acc_by_district_dt <- merge(pop_by_district_dt, acc_by_district_dt, by='District.Name')
+# Bus Stop by Neighborhood
+stops_by_neighborhood_dt <- bus_dt[, .(N.Bus.Stops = .N), by=Neighborhood.Name]
 
 # Transports by Neighborhood and by District
-transport_by_neighboorhood_dt <- transport_dt[, .N, by=Neighborhood.Name]
-setnames(transport_by_neighboorhood_dt, "N", "N.Transports")
-transport_by_district_dt <- transport_dt[, .N, by=District.Name]
-setnames(transport_by_district_dt, "N", "N.Transports")
+transport_by_neighboorhood_dt <- transport_dt[, .(N.Transports = .N), by=Neighborhood.Name]
+transport_by_district_dt <- transport_dt[, .(N.Transports = .N), by=District.Name]
 
-# Accidents by Transports Datasets
-trans_x_acc_by_neighborhood_dt <- merge(transport_by_neighboorhood_dt, acc_by_neighboorhood_dt, by="Neighborhood.Name", all.y = T)
-trans_x_acc_by_neighborhood_dt[, N.Transports := replace_na(N.Transports, 0)]
 
-trans_x_acc_by_district_dt <- merge(transport_by_district_dt, acc_by_district_dt, by="District.Name", all.y = T)
-trans_x_acc_by_district_dt[, N.Transports := replace_na(N.Transports, 0)]
+# Full Neighborhood and District Dataset
+full_neighborhood_dt <- Reduce(function(x, y){merge(x, y, all.x = TRUE)}, list(pop_by_neighborhood_dt, acc_by_neighboorhood_dt, transport_by_neighboorhood_dt, stops_by_neighborhood_dt))
+full_neighborhood_dt[is.na(full_neighborhood_dt)] <- 0
+
+full_district_dt <- Reduce(function(x, y){merge(x, y, all.x = TRUE)}, list(pop_by_district_dt, acc_by_district_dt, transport_by_district_dt))
+
 ```
 
 
@@ -176,13 +121,13 @@ We proceed by testing this proposed correlation, comparing different Neighborhoo
 ```{r corr_pop_x_acc, fig.width=13, message = FALSE}
 # TODO: adjust, make x axis label centered, same size -> aesthetics
 
-p1 <- pop_x_acc_by_neighboorhood_dt %>% 
-  ggplot(aes(x=Number,y=N.Accidents)) + geom_point(alpha = 0.5) + stat_smooth(method="lm") + 
+p1 <- full_neighborhood_dt %>% 
+  ggplot(aes(x=N.Pop,y=N.Accidents)) + geom_point(alpha = 0.5) + stat_smooth(method="lm") + 
   geom_text_repel(aes(label=Neighborhood.Name)) +
   labs(x = '', y = 'Number of Accidents', title = "Number of Accidents by Neighborhood Population") +
   theme(plot.title = element_text(size=14, margin=margin(b=14)))
-p2 <- pop_x_acc_by_district_dt %>% 
-  ggplot(aes(x=Number,y=N.Accidents)) + geom_point(alpha = 0.5) + stat_smooth(method="lm") + 
+p2 <- full_district_dt %>% 
+  ggplot(aes(x=N.Pop,y=N.Accidents)) + geom_point(alpha = 0.5) + stat_smooth(method="lm") + 
   geom_text_repel(aes(label=District.Name)) +
   labs(x='', y='', title = "Number of Accidents by District Population") +
   theme(plot.title = element_text(size=14, margin=margin(b=14)))
@@ -195,13 +140,12 @@ grid::grid.draw(grid::textGrob("Population", y=0.05, x=0.52))
 Although both these correlations are statistically significant (p-value lower than .05 in both cases of the Spearman's rank correlation test), we can again notice Eixample and some of its neighborhoods (like "la Dreta de l'Eixample" and "l'Antiga Esquerra de l'Eixample") as clear outliers. This could be explained by the centrality of this district, which further heightens the traffic. 
 
 ```{r corr_pop_x_acc_tests, results="hide"}
-# TODO: is "include=FALSE" really what we want?
 
 print("Population in neighboorhood vs N Accident")
-cor.test(pop_x_acc_by_neighboorhood_dt$Number, pop_x_acc_by_neighboorhood_dt$N.Accidents, method="spearman", exact=FALSE)
+cor.test(full_neighborhood_dt$N.Pop, full_neighborhood_dt$N.Accidents, method="spearman", exact=FALSE)
 
 print("Population in district vs N Accident")
-cor.test(pop_x_acc_by_district_dt$Number, pop_x_acc_by_district_dt$N.Accidents, method="spearman")
+cor.test(full_district_dt$N.Pop, full_district_dt$N.Accidents, method="spearman")
 ```
 
 As we don't have any direct metric for the traffic, we attempt use the number of transportation stations in a certain area as a proxy for its afflux of people.
@@ -209,13 +153,13 @@ As we don't have any direct metric for the traffic, we attempt use the number of
 ```{r corr_trans_x_acc, fig.width=13, message = FALSE}
 # TODO: adjust, make x axis label centered, same size -> aesthetics -> same as before
 
-p1 <- trans_x_acc_by_neighborhood_dt %>% 
+p1 <- full_neighborhood_dt %>% 
   ggplot(aes(x=N.Transports,y=N.Accidents)) + geom_point(alpha = 0.5) + stat_smooth(method="lm") + 
   geom_text_repel(aes(label=Neighborhood.Name)) +
   labs(x = '', y = 'Number of Accidents', title = "Number of Accidents against Transports in the Neighborhood") +
   theme(plot.title = element_text(size=14, margin=margin(b=14)))
 
-p2 <- trans_x_acc_by_district_dt %>% 
+p2 <- full_district_dt %>% 
   ggplot(aes(x=N.Transports,y=N.Accidents)) + geom_point(alpha = 0.5) + stat_smooth(method="lm") + 
   geom_text_repel(aes(label=District.Name)) +
   labs(x='', y='', title = "Number of Accidents against Transports in the District") +
@@ -231,10 +175,10 @@ However the correlations seem to be stronger than the population correlation the
 # TODO: is "include=FALSE" really what we want?
 
 print("Number of Transports in neighboorhood vs N Accident")
-cor.test(trans_x_acc_by_neighborhood_dt$N.Transports, trans_x_acc_by_neighborhood_dt$N.Accidents, method="spearman", exact=FALSE)
+cor.test(full_neighborhood_dt$N.Transports, full_neighborhood_dt$N.Accidents, method="spearman", exact=FALSE)
 
 print("Number of Transports in district vs N Accident")
-cor.test(trans_x_acc_by_district_dt$N.Transports, trans_x_acc_by_district_dt$N.Accidents, method="spearman")
+cor.test(full_district_dt$N.Transports, full_district_dt$N.Accidents, method="spearman")
 ```
 
 ### Bus stops as confounding variable?
@@ -243,16 +187,15 @@ One could argue that the number of buses in an area is the real influence here.
 
 ```{r cof_var, message=FALSE, out.width="49%"}
 
-
-ggplot(df) + geom_point(aes(bus_stops, accidents, color = "Bus")) + 
-  geom_point(aes(transports, accidents, color = "Transports")) + 
-  geom_smooth(aes(bus_stops, accidents, color = "Bus"), method = "lm") + 
-  geom_smooth(aes(transports, accidents, color = "Transports"), method = "lm") +
+ggplot(full_neighborhood_dt) + geom_point(aes(N.Bus.Stops, N.Accidents, color = "Bus")) + 
+  geom_point(aes(N.Transports, N.Accidents, color = "Transports")) + 
+  geom_smooth(aes(N.Bus.Stops, N.Accidents, color = "Bus"), method = "lm") + 
+  geom_smooth(aes(N.Transports, N.Accidents, color = "Transports"), method = "lm") +
   labs(x = "Number of stops", y="Number of accidents", title = "Correlation between Stops and Accidents by Neighborhood", color="Stop type") +
   guides(color=guide_legend(override.aes=list(fill=NA))) +
   theme(legend.position = c(0.93, 0.1))
 
-ggplot(df, aes(transports, bus_stops)) + geom_point(alpha = 0.5) +
+ggplot(full_neighborhood_dt, aes(N.Transports, N.Bus.Stops)) + geom_point(alpha = 0.5) +
   geom_smooth(method = "lm") + 
   labs(title = "Correlation between Transport and Bus stops in a Neighborhood", x="Number of transport stops", y="Number of bus stops")
 ```
@@ -261,9 +204,9 @@ The two graphs above show that both the number bus stops and other transport sto
 
 ```{r message=FALSE, fig.height = 5, fig.width=7, out.height="40%", fig.align = "center"}
 
-df[, bus_strata := with(df, cut(bus_stops, breaks = c(0, 30, 60, 90, 137),  
+full_neighborhood_dt[, bus_strata := with(full_neighborhood_dt, cut(N.Bus.Stops, breaks = c(0, 30, 60, 90, 137),  
                                 labels = c("0-30","31-60","61-90", ">90")))] %>%
-  ggplot(aes(transports, accidents)) + 
+  ggplot(aes(N.Transports, N.Accidents)) + 
   geom_point(alpha = 0.5) + 
   geom_smooth(method = "lm") + 
   facet_wrap(~ bus_strata, scales = "free") + 
@@ -279,8 +222,8 @@ Below is the result for the spearman correlation test between :
 - accidents and bus stops, controlling for transport stops. 
 
 ```{r echo=FALSE, fig.keep="all", message=FALSE, running=FALSE}
-res1 <- pcor.test(df$accidents, df$transports, df$bus_stops, method = "spearman")
-res2 <- pcor.test(df$accidents, df$bus_stops, df$transports, method = "spearman")
+res1 <- pcor.test(full_neighborhood_dt$N.Accidents, full_neighborhood_dt$N.Transports, full_neighborhood_dt$N.Bus.Stops, method = "spearman")
+res2 <- pcor.test(full_neighborhood_dt$N.Accidents, full_neighborhood_dt$N.Bus.Stops, full_neighborhood_dt$N.Transports, method = "spearman")
 
 cor_dt <- data.table(test = c("accidents vs. transports",
                     "accidents vs. bus_stops"))
@@ -291,37 +234,8 @@ cor_dt
 
 A positive correlation between accidents and transport stops of about 0.65 still remains and is statistically significant, even when controlling for bus stops. 
 
-<!-- ### Predicting the number of accidents given transport and bus stops.  -->
-<!-- We can see that accidents are associated with transport opportunities and bus stops. This means that they could be used to create a model that helps predicting the average number of accidents given the number of bus and other transport stops. A good model could be useful for urban planners to anticipate the increase of accidents after installing different types of transport stations in a neighborhood.  -->
-
-<!-- ```{r echo=FALSE, results="hide", fig.keep="all", message=FALSE, running=FALSE, warning=FALSE} -->
-<!-- set.seed(727) -->
-<!-- training <- data.table(sample_n(dat, 0.8*nrow(dat))) -->
-<!-- test <- anti_join(dat, training) -->
-<!-- result_lm <- lm(accidents ~ bus_stops + transports, data = training) -->
-
-<!-- test[, prediction := predict(result_lm, test)] -->
-<!-- test[, residuals := accidents - prediction] -->
-<!-- ``` -->
-
-<!-- ```{r echo=FALSE, results="hide", fig.keep="all", message=FALSE, running=FALSE, warning=FALSE} -->
-<!-- test %>%  -->
-<!--   ggplot(aes(accidents, prediction)) +  -->
-<!--   geom_point() + stat_smooth(method="lm") +  -->
-<!--   ggtitle("Positive correlation between predicted number of accidents and actual number of accidents") -->
-<!--   theme_light() -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- result_lm$coefficients -->
-<!-- #print(summary(result_lm)) -->
-<!-- ``` -->
-<!-- The results of the linear model suggest some predictive value of the variables bus stops and transport stops. However, one needs to be careful in drawing conclusions about the causality regarding the correlation between the number of different kinds of transport station and the number of accidents. The results of the model do not show that increasing the number of transport or bus stops causes an increase in accidents. ´ -->
-
-
 
 ### Afflux throught the day
-
 
 If our hypothesis is that the accidents are due to the afflux of people, we would expect their distribution throughout the day or the week not to be uniform.
 
@@ -365,26 +279,23 @@ To better understand the nature of the accidents, a prediction task was made usi
 
 ```{r log_reg, message = FALSE, results="hide", fig.keep="all", out.width="49%"}
 
-# fig.show="hold", fig.height = 4, out.height="25%", fig.align = "center",
+# Selecting Features
+encoded_dt <- acc_dt[, c(2,5,6,7,8,9,10,11,12,13)] 
 
-# Create the input data frame.
-data_dt_1 <- acc_dt[, c(2,5,6,7,8,9,10,11,12,13)] # starting from the 1st data point to all the end. 
-
-# trying to guess: part of the days morning, not-morning (afternoon, night)
-# features: district name, weekday, month, mild injuries, serious injuries, victims, vehicles involved 
+# Predicting: part of the days morning, not-morning (afternoon, night)
+# Features: district name, weekday, month, mild injuries, serious injuries, victims, vehicles involved 
 
 # Encoding categorical data columns.
-data_dt_1$District.Name <- as.numeric(as.factor(data_dt_1$District.Name))
-data_dt_1$Weekday <- factor(data_dt_1$Weekday, level = c("Friday", "Thursday", "Wednesday", "Saturday", "Tuesday", "Monday","Sunday"), labels = c(5,4,3,6,2,1,7))
-data_dt_1$Month <- factor(data_dt_1$Month, level = c("October","September", "December", "July", "May", "June","January", "April", "March", "November", "February", "August" ),
+encoded_dt$District.Name <- as.numeric(as.factor(encoded_dt$District.Name))
+encoded_dt$Weekday <- factor(encoded_dt$Weekday, level = c("Friday", "Thursday", "Wednesday", "Saturday", "Tuesday", "Monday","Sunday"), labels = c(5,4,3,6,2,1,7))
+encoded_dt$Month <- factor(encoded_dt$Month, level = c("October","September", "December", "July", "May", "June","January", "April", "March", "November", "February", "August" ),
                          labels = c(10,9,12,7,5,6,1,4,3,11,2,8))
-data_dt_1$Part.of.the.day = factor(data_dt_1$Part.of.the.day, level = c( "Morning", "Afternoon", "Night"), labels = c(0,1,1))
+encoded_dt$Part.of.the.day = factor(encoded_dt$Part.of.the.day, level = c( "Morning", "Afternoon", "Night"), labels = c(0,1,1))
 
 
 
-# shuffling the data
-shuffle_index <- sample(1:nrow(data_dt_1))
-data_dt_2 <- data_dt_1[shuffle_index, ] 
+# Shuffling the data
+encoded_dt <- encoded_dt[sample(1:nrow(encoded_dt)), ] 
 
 
 # split as train-test data
@@ -400,8 +311,8 @@ create_train_test <- function(data, size = 0.8, train = TRUE) {
 }
 
 
-data_train <- create_train_test(data_dt_2, 0.8, train = TRUE)
-data_test <- create_train_test(data_dt_2, 0.8, train = FALSE)
+data_train <- create_train_test(encoded_dt, 0.8, train = TRUE)
+data_test <- create_train_test(encoded_dt, 0.8, train = FALSE)
 
 # Building Multiple logistic regression model
 
@@ -442,21 +353,6 @@ ggroc(rocobj, colour = 'steelblue', size = 2) +
   ggtitle(paste0('ROC Curve ', '(AUC = ', auc, ')')) 
 
 ```
-```{r}
-
-# ggplot(data = data.table(confusion_matrix),
-#        mapping = aes(x = predict_reg,
-#                      y = V2)) +
-#   geom_tile(aes(fill = N), colour = "white") +
-#   geom_text(aes(label = sprintf("%1.0f", N)), vjust = 1) +
-#   scale_fill_gradient(low = "white", high = "yellow", trans="log") +
-#   theme_bw() + theme(legend.position = "none")
-
-
-
-
-```
-
 
 
 # Conclusions
