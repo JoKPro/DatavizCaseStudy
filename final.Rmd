@@ -22,7 +22,6 @@ library(ggrepel)
 library(ppcor)
 library(patchwork)
 library(forcats)
-library(ggpubr)
 library(viridis)
 library(pROC)
 ```
@@ -119,7 +118,6 @@ One can immediately notice a clear outlier: the Eixample district. This is, in f
 We proceed by testing this proposed correlation, comparing different Neighborhoods and Districts:
 
 ```{r corr_pop_x_acc, fig.width=13, message = FALSE}
-# TODO: adjust, make x axis label centered, same size -> aesthetics
 
 p1 <- full_neighborhood_dt %>% 
   ggplot(aes(x=N.Pop,y=N.Accidents)) + geom_point(alpha = 0.5) + stat_smooth(method="lm") + 
@@ -151,7 +149,6 @@ cor.test(full_district_dt$N.Pop, full_district_dt$N.Accidents, method="spearman"
 As we don't have any direct metric for the traffic, we attempt use the number of transportation stations in a certain area as a proxy for its afflux of people.
 
 ```{r corr_trans_x_acc, fig.width=13, message = FALSE}
-# TODO: adjust, make x axis label centered, same size -> aesthetics -> same as before
 
 p1 <- full_neighborhood_dt %>% 
   ggplot(aes(x=N.Transports,y=N.Accidents)) + geom_point(alpha = 0.5) + stat_smooth(method="lm") + 
@@ -169,10 +166,9 @@ p1 + p2
 grid::grid.draw(grid::textGrob("Number of Transports", y=0.05, x=0.52))
 
 ```
-It would be naïve of to assume it would all be explained by only this one variable. The number of stations could very well be connected to the physical area of the district/neighborhood, which obviously means a higher probability of accidents (maybe normalize by area size?).
-However the correlations seem to be stronger than the population correlation the we showed above (rho values: TODO: see if this is true), so it still seems like a good indicator.
+It would be naïve of to assume it would all be explained by only this one variable. The number of stations could very well be connected to the physical area of the district/neighborhood, which obviously means a higher probability of accidents.
+However the correlations seem to be stronger than the population correlation the we showed above (Spearman's rho of 0.70/0.74 vs 0.76/0.83 for Neighborhood/District respectively), so it still seems like a good indicator.
 ```{r corr_trans_x_acc_tests, results='hide'}
-# TODO: is "include=FALSE" really what we want?
 
 print("Number of Transports in neighboorhood vs N Accident")
 cor.test(full_neighborhood_dt$N.Transports, full_neighborhood_dt$N.Accidents, method="spearman", exact=FALSE)
