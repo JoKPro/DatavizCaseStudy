@@ -172,7 +172,7 @@ grid::grid.draw(grid::textGrob("Number of Transports", y=0.05, x=0.52))
 
 ```
 It would be naïve of to assume it would all be explained by only this one variable. The number of stations could very well be connected to the physical area of the district/neighborhood, which obviously means a higher probability of accidents.
-However the correlations seem to be stronger than the population correlation the we showed above (Spearman's rho of 0.70/0.74 vs 0.76/0.83 for Neighborhood/District respectively), so it still seems like a good indicator.
+However the correlations seem to be stronger than the population correlation the we showed above ($\rho = 0.70/0.74, p < 0.05$ vs $\rho= 0.76/0.83, p < 0.05$ for Neighborhood/District respectively), so it still seems like a good indicator.
 ```{r corr_trans_x_acc_tests, results='hide'}
 
 print("Number of Transports in neighboorhood vs N Accident")
@@ -184,7 +184,7 @@ cor.test(full_district_dt$N.Transports, full_district_dt$N.Accidents, method="sp
 
 ### Bus stops as confounding variable?
 
-One could argue that the number of buses in an area is the true driving factor in a given area instead of other transport stops. The latter serve mostly off-road vehicles like trains, underground or boats, but they are probably connected to bus stops that do directly influence street-traffic. 
+One could argue that the number of buses in an area is the true driving factor instead of other transport stops. The latter serve mostly off-road vehicles like trains, underground or boats, but they are probably connected to bus stops that do directly influence street-traffic. 
 
 Before making conclusions however, it is necessary to investigate the different associations between transport or bus stops and accidents. 
 
