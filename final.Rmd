@@ -110,7 +110,8 @@ acc_dt %>% ggplot(aes(x=fct_infreq(District.Name))) +
   geom_bar() +
   geom_text(stat='count', aes(label=..count..), vjust=-0.3) +
   labs(x = 'District', y = 'Number of Accidents') +
-  theme(axis.text.x = element_text(angle = 30, vjust = 0.95, hjust=0.65))
+  theme(axis.text.x = element_text(angle = 30, vjust = 0.95, hjust=0.65)) + 
+  theme_light()
 
 ```
 
@@ -123,12 +124,14 @@ p1 <- full_neighborhood_dt %>%
   ggplot(aes(x=N.Pop,y=N.Accidents)) + geom_point(alpha = 0.5) + stat_smooth(method="lm") + 
   geom_text_repel(aes(label=Neighborhood.Name)) +
   labs(x = '', y = 'Number of Accidents', title = "Number of Accidents by Neighborhood Population") +
-  theme(plot.title = element_text(size=14, margin=margin(b=14)))
+  theme(plot.title = element_text(size=14, margin=margin(b=14))) + 
+  theme_light()
 p2 <- full_district_dt %>% 
   ggplot(aes(x=N.Pop,y=N.Accidents)) + geom_point(alpha = 0.5) + stat_smooth(method="lm") + 
   geom_text_repel(aes(label=District.Name)) +
   labs(x='', y='', title = "Number of Accidents by District Population") +
-  theme(plot.title = element_text(size=14, margin=margin(b=14)))
+  theme(plot.title = element_text(size=14, margin=margin(b=14))) + 
+  theme_light()
 
 p1 + p2
 grid::grid.draw(grid::textGrob("Population", y=0.05, x=0.52))
@@ -154,13 +157,15 @@ p1 <- full_neighborhood_dt %>%
   ggplot(aes(x=N.Transports,y=N.Accidents)) + geom_point(alpha = 0.5) + stat_smooth(method="lm") + 
   geom_text_repel(aes(label=Neighborhood.Name)) +
   labs(x = '', y = 'Number of Accidents', title = "Number of Accidents against Transports in the Neighborhood") +
-  theme(plot.title = element_text(size=14, margin=margin(b=14)))
+  theme(plot.title = element_text(size=14, margin=margin(b=14))) + 
+  theme_light()
 
 p2 <- full_district_dt %>% 
   ggplot(aes(x=N.Transports,y=N.Accidents)) + geom_point(alpha = 0.5) + stat_smooth(method="lm") + 
   geom_text_repel(aes(label=District.Name)) +
   labs(x='', y='', title = "Number of Accidents against Transports in the District") +
-  theme(plot.title = element_text(size=14, margin=margin(b=14)))
+  theme(plot.title = element_text(size=14, margin=margin(b=14))) + 
+  theme_light()
 
 p1 + p2
 grid::grid.draw(grid::textGrob("Number of Transports", y=0.05, x=0.52))
@@ -179,7 +184,9 @@ cor.test(full_district_dt$N.Transports, full_district_dt$N.Accidents, method="sp
 
 ### Bus stops as confounding variable?
 
-One could argue that the number of buses in an area is the real influence here.  
+One could argue that the number of buses in an area is the true driving factor in a given area instead of other transport stops. The latter serve mostly off-road vehicles like trains, underground or boats, but they are probably connected to bus stops that do directly influence street-traffic. 
+
+Before making conclusions however, it is necessary to investigate the different associations between transport or bus stops and accidents. 
 
 ```{r cof_var, message=FALSE, out.width="49%"}
 
@@ -187,16 +194,25 @@ ggplot(full_neighborhood_dt) + geom_point(aes(N.Bus.Stops, N.Accidents, color = 
   geom_point(aes(N.Transports, N.Accidents, color = "Transports")) + 
   geom_smooth(aes(N.Bus.Stops, N.Accidents, color = "Bus"), method = "lm") + 
   geom_smooth(aes(N.Transports, N.Accidents, color = "Transports"), method = "lm") +
-  labs(x = "Number of stops", y="Number of accidents", title = "Correlation between Stops and Accidents by Neighborhood", color="Stop type") +
+  labs(x = "Number of stops", y="Number of accidents", title = "Correlation between Stops and Accidents by neighborhood", color="Stop type") +
   guides(color=guide_legend(override.aes=list(fill=NA))) +
-  theme(legend.position = c(0.93, 0.1))
+  theme(legend.position = c(0.93, 0.1)) + 
+  theme_light()
 
 ggplot(full_neighborhood_dt, aes(N.Transports, N.Bus.Stops)) + geom_point(alpha = 0.5) +
   geom_smooth(method = "lm") + 
-  labs(title = "Correlation between Transport and Bus stops in a Neighborhood", x="Number of transport stops", y="Number of bus stops")
+  labs(title = "Correlation between Transport and Bus stops by neighborhood", x="Number of transport stops", y="Number of bus stops") + 
+  theme_light()
+
+
+## correlation coefficients
+transport_acc_rho <- cor.test(full_neighborhood_dt$N.Transports, full_neighborhood_dt$N.Accidents, method = "spearman")
+bus_acc_rho <- cor.test(full_neighborhood_dt$N.Bus.Stops, full_neighborhood_dt$N.Accidents, method = "spearman")
+transport_bus_rho <- cor.test(full_neighborhood_dt$N.Transports, full_neighborhood_dt$N.Bus.Stops, method = "spearman")
+
 ```
 
-The two graphs above show that both the number bus stops and other transport stops in each neighborhood are positively associated with accidents and that also transports and bus stops are correlated themselves. It is possible that bus stops are a confounding variable in the correlation between transport stops and accidents. Thus, it is necessary to check the correlation again while keeping the number of bus stops constant.
+The two graphs above show that transport is positively associated with accidents ($\rho=0.76, p<0.05$) as well as bus stops and accidents ($\rho = 0.66, p<0.05$). This is true also transports and bus stops ($\rho=0.52,p<0.05$). It is possible that bus stops are a confounding variable in the correlation between transport stops and accidents. Thus, it is necessary to check the correlation again while keeping the number of bus stops constant.
 
 ```{r message=FALSE, fig.height = 5, fig.width=7, out.height="40%", fig.align = "center"}
 
@@ -206,11 +222,12 @@ full_neighborhood_dt[, bus_strata := with(full_neighborhood_dt, cut(N.Bus.Stops,
   geom_point(alpha = 0.5) + 
   geom_smooth(method = "lm") + 
   facet_wrap(~ bus_strata, scales = "free") + 
-  labs(x="Number of accidents", y ="Number of transport stops", title="Correlation Accidents by Transports controlled for the Number of Bus Stops")
+  labs(x="Number of transport stops", y ="Number of accidents", title="Correlation Accidents by Transports controlled for the Number of Bus Stops") + 
+  theme_light()
   
 ```
 
-In the above plot the number of bus stops are binned into 4 range categories. The correlation between accidents and transport stations seemingly persists even when conditioning for bus stops. However, in the last category only few datapoints remain and the resulting correlation is visibly influenced by the outlier having about 60 transport station. 
+In the above plot the number of bus stops are binned into 4 range categories. The correlation between accidents and transport stations seemingly persists even when conditioning for bus stops. However, in the last category only few datapoints remain and the resulting correlation is visibly influenced by the outlier having about 60 transport stations. 
 
 Below is the result for the spearman correlation test between :
 
@@ -224,11 +241,12 @@ res2 <- pcor.test(full_neighborhood_dt$N.Accidents, full_neighborhood_dt$N.Bus.S
 cor_dt <- data.table(test = c("accidents vs. transports",
                     "accidents vs. bus_stops"))
 cor_dt <- cbind(cor_dt, rbind(res1, res2))
-cor_dt
+#cor_dt
+knitr::kable(cor_dt)
 ```
 
 
-A positive correlation between accidents and transport stops of about 0.65 still remains and is statistically significant, even when controlling for bus stops. 
+A positive correlation between accidents and transport stops of about 0.65 still remains and is statistically significant, even when controlling for bus stops.
 
 
 ### Afflux throught the day
@@ -236,13 +254,15 @@ A positive correlation between accidents and transport stops of about 0.65 still
 If our hypothesis is that the accidents are due to the afflux of people, we would expect their distribution throughout the day or the week not to be uniform.
 
 ```{r acc_hourly, fig.show="hold", out.width="50%"}
-ggplot(acc_dt, aes(x=Hour)) + geom_bar() +labs(y="Number of accidents", title="Number of accidents by Hour")
+ggplot(acc_dt, aes(x=Hour)) + geom_bar() +labs(y="Number of accidents", title="Number of accidents by Hour") + 
+  theme_light()
 
 acc_dt %>%
   mutate(Weekday=factor(Weekday, levels=c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))) %>%
   ggplot(aes(x=Weekday)) + geom_bar() +
   labs(title="Number of accidents by Weekday") +
-  theme(axis.title.y = element_blank())
+  theme(axis.title.y = element_blank()) + 
+  theme_light()
 ```
 
 As we can see, there are three peaks in the number of accidents: around 8-9 o'clock, 13-14 o'clock, and 18-19 o'clock. This leads us to believe that the traffic is expecially high at those times, which seems logical since these hours correspond to the _going-to-work-time_, _lunch-time_ and _coming-back-from-work-time_.
@@ -263,7 +283,8 @@ acc_dt %>%
         axis.text.y=element_blank(), axis.ticks.y=element_blank(),
         legend.title = element_text(size=8),
         title = element_text(size=8),
-        panel.grid = element_blank()) 
+        panel.grid = element_blank()) + 
+  theme_light()
 
 ```
 What is interesting here, is that the density focuses into one central point, namely the Eixample disctrict (calculated from the Long and Lat variables). We can clearly see that accidents in areas leading from/to (especially south and north) the center get more dense during the morning and afternoon. This further proves the above theory.
@@ -339,14 +360,16 @@ ggplot(plot_conf_matrix, aes(x = V2, y = predict_reg, fill = goodbad, alpha = pr
   scale_y_discrete(labels=c("0" = "Morning", "1" = "Non-Morning")) + 
   labs(title=paste0('Confusion Matrix (Overall Accuracy:  ', round(1 - missing_class, 3), ')'), x="True Label", y="Predicted Label") +
   guides(fill="none", alpha="none") + 
-  theme_bw()
+  theme_light()
+  #theme_bw()
 
 # Calculate ROC Curve and AUC. Plot afterwards. 
 rocobj <- roc(data_test$Part.of.the.day, predict_reg)
 auc <- round(auc(data_test$Part.of.the.day, predict_reg),4)
 
 ggroc(rocobj, colour = 'steelblue', size = 2) +
-  ggtitle(paste0('ROC Curve ', '(AUC = ', auc, ')')) 
+  ggtitle(paste0('ROC Curve ', '(AUC = ', auc, ')')) + 
+  theme_light()
 
 ```
 
